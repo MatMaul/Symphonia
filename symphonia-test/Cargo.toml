@@ -1,0 +1,15 @@
+[package]
+name = "symphonia-test"
+description = "Test utilities for Symphonia - compares decoding output against FFmpeg."
+authors = ["Philip Deljanov <philip.deljanov@gmail.com>"]
+# Common package metadata located in workspace Cargo.toml.
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+symphonia = { path = "../symphonia", features = ["all-codecs", "all-formats"] }
+thiserror = "2"

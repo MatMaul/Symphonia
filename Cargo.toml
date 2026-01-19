@@ -21,6 +21,7 @@ members = [
     "symphonia-metadata",
     "symphonia-play",
     "symphonia-check",
+    "symphonia-test",
 ]
 
 [workspace.package]
