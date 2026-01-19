@@ -14,13 +14,18 @@ rust-version.workspace = true
 version.workspace = true
 
 [features]
-default = ["ape", "id3v1", "id3v2"]
+default = ["std", "ape", "id3v1", "id3v2"]
+
+std = [
+    "log/std",
+    "symphonia-core/std",
+]
 
 ape = []
 flac = ["vorbis"]
 id3v1 = []
 id3v2 = []
-riff-info = []
+riff-info = ["id3v2"]
 vorbis = ["flac"]
 
 # Enable all RIFF metadata formats.
@@ -29,8 +34,8 @@ riff = [
 ]
 
 [dependencies]
-lazy_static = "1.4.0"
-log = "0.4"
-regex-lite = "0.1.6"
+hashbrown = { version = "0.16", default-features = false, features = ["alloc"] }
+lazy_static = { version = "1.4.0", default-features = false, features = ["spin_no_std"] }
+log = { version = "0.4", default-features = false }
 smallvec = "1.13.1"
-symphonia-core = { version = "0.6.0", path = "../symphonia-core" }
+symphonia-core = { version = "0.6.0", path = "../symphonia-core", default-features = false }

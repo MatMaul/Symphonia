@@ -7,8 +7,10 @@
 
 //! RIFF-based metadata formats reading.
 
+use alloc::string::String;
+use alloc::vec::Vec;
 use core::str;
-use std::collections::HashMap;
+use hashbrown::HashMap;
 
 use lazy_static::lazy_static;
 

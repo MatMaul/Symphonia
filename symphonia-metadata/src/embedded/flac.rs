@@ -7,8 +7,11 @@
 
 //! FLAC metadata block reading.
 
-use std::num::NonZeroU8;
-use std::sync::Arc;
+use alloc::string::String;
+use alloc::sync::Arc;
+use alloc::vec;
+use alloc::vec::Vec;
+use core::num::NonZeroU8;
 
 use symphonia_core::errors::{Result, decode_error};
 use symphonia_core::formats::VendorDataAttachment;

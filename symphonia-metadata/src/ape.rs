@@ -7,10 +7,16 @@
 
 //! An APEv1 and APEv2 metadata reader.
 
+use alloc::boxed::Box;
+use alloc::string::String;
+use alloc::sync::Arc;
+use alloc::vec::Vec;
 use core::str;
-use std::collections::HashMap;
-use std::io::{Seek, SeekFrom};
-use std::sync::Arc;
+
+use hashbrown::HashMap;
+
+#[cfg(feature = "std")]
+use symphonia_core::io::{Seek, SeekFrom};
 
 use symphonia_core::errors::{Result, decode_error, unsupported_error};
 use symphonia_core::formats::probe::{
@@ -361,24 +367,31 @@ impl MetadataReader for ApeReader<'_> {
 
         // If the header was actually a footer. Seek to the start of the APE tag.
         if !header.is_header {
-            // The current position is the first byte after the APE footer. After the seek, the
-            // reader will be at the header (if the tag contains one), or the first item.
-            self.reader.seek(SeekFrom::Current(-(i64::from(header.size))))?;
+            #[cfg(feature = "std")]
+            {
+                // The current position is the first byte after the APE footer. After the seek, the
+                // reader will be at the header (if the tag contains one), or the first item.
+                self.reader.seek(SeekFrom::Current(-(i64::from(header.size))))?;
 
-            // If the APE tag contains a header, read it and do some verification checks. All header
-            // and footer fields should match other than the `is_header` flag.
-            if header.has_header {
-                let real_header = ApeHeader::read(&mut self.reader)?;
+                // If the APE tag contains a header, read it and do some verification checks. All
+                // header and footer fields should match other than the `is_header` flag.
+                if header.has_header {
+                    let real_header = ApeHeader::read(&mut self.reader)?;
 
-                if header.has_footer != real_header.has_footer
-                    || header.has_header != real_header.has_header
-                    || header.is_header == real_header.is_header
-                    || header.num_items != real_header.num_items
-                    || header.size != real_header.size
-                    || header.version != real_header.version
-                {
-                    return decode_error("ape: header and footer mismatch");
+                    if header.has_footer != real_header.has_footer
+                        || header.has_header != real_header.has_header
+                        || header.is_header == real_header.is_header
+                        || header.num_items != real_header.num_items
+                        || header.size != real_header.size
+                        || header.version != real_header.version
+                    {
+                        return decode_error("ape: header and footer mismatch");
+                    }
                 }
+            }
+            #[cfg(not(feature = "std"))]
+            {
+                return unsupported_error("ape: footer parsing requires seek support");
             }
         }
 
@@ -416,7 +429,7 @@ impl MetadataReader for ApeReader<'_> {
                 ApeItemValue::String(value) | ApeItemValue::Locator(value) => {
                     // If the value contains a null-terminator, then the value is actually a list.
                     if value.contains('\0') {
-                        let items = value.split_terminator('\0').map(|s| s.to_string()).collect();
+                        let items = value.split_terminator('\0').map(String::from).collect();
                         RawValue::StringList(Arc::new(items))
                     }
                     else {
@@ -511,7 +524,7 @@ fn try_parse_image_data(buf: Box<[u8]>, tags: &mut Vec<Tag>) -> (Box<[u8]>, Opti
             // and add it to the visual's tags if successful.
             if let Ok(name) = str::from_utf8(left) {
                 if !name.is_empty() {
-                    let name = Arc::new(name.to_string());
+                    let name = Arc::new(String::from(name));
 
                     let tag = Tag::new_from_parts(
                         "FILE",

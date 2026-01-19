@@ -7,10 +7,12 @@
 
 //! Utilties for handling iTunes-style metadata.
 
+use alloc::string::String;
+
 use symphonia_core::errors::Result;
 use symphonia_core::meta::{MetadataBuilder, RawTag, RawValue};
 
-use std::collections::HashMap;
+use hashbrown::HashMap;
 
 use lazy_static::lazy_static;
 

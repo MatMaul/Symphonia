@@ -5,17 +5,71 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::cmp;
-use std::io;
-use std::io::{IoSliceMut, Read, Seek};
-use std::ops::Sub;
+use alloc::boxed::Box;
+use alloc::vec;
+use core::cmp;
+#[cfg(feature = "std")]
+use core::ops::Sub;
 
-use super::SeekBuffered;
-use super::{MediaSource, ReadBytes};
+use crate::io::{self, MediaSource, Read, ReadBytes, SeekBuffered};
+
+#[cfg(feature = "std")]
+use crate::io::{Seek, SeekFrom};
 
 #[inline(always)]
 fn unexpected_eof_error<T>() -> io::Result<T> {
     Err(io::Error::from(io::ErrorKind::UnexpectedEof))
+}
+
+#[cfg(feature = "std")]
+fn read_at_most<R: std::io::Read + ?Sized>(reader: &mut R, buf: &mut [u8]) -> io::Result<usize> {
+    std::io::Read::read(reader, buf)
+}
+
+#[cfg(not(feature = "std"))]
+fn read_at_most<R: Read<Error = io::Error> + ?Sized>(
+    reader: &mut R,
+    buf: &mut [u8],
+) -> io::Result<usize> {
+    let mut read = 0;
+    for slot in buf.iter_mut() {
+        match reader.read_exact(core::slice::from_mut(slot)) {
+            Ok(()) => read += 1,
+            Err(err) => {
+                if read == 0 {
+                    return Err(err);
+                }
+                return Ok(read);
+            }
+        }
+    }
+    Ok(read)
+}
+
+#[cfg(feature = "std")]
+fn read_at_most_retry<R: Read<Error = io::Error> + std::io::Read + ?Sized>(
+    reader: &mut R,
+    buf: &mut [u8],
+) -> io::Result<usize> {
+    loop {
+        match read_at_most(reader, buf) {
+            Err(err) if err.kind() == io::ErrorKind::Interrupted => continue,
+            other => return other,
+        }
+    }
+}
+
+#[cfg(not(feature = "std"))]
+fn read_at_most_retry<R: Read<Error = io::Error> + ?Sized>(
+    reader: &mut R,
+    buf: &mut [u8],
+) -> io::Result<usize> {
+    loop {
+        match read_at_most(reader, buf) {
+            Err(err) if err.kind() == io::ErrorKind::Interrupted => continue,
+            other => return other,
+        }
+    }
 }
 
 /// `MediaSourceStreamOptions` specifies the buffering behaviour of a `MediaSourceStream`.
@@ -109,15 +163,17 @@ impl<'s> MediaSourceStream<'s> {
             // has sufficient space to service the entire read do a simple read into that region's
             // slice.
             let actual_read_len = if vec0.len() >= self.read_block_len {
-                self.inner.read(&mut vec0[..self.read_block_len])?
+                read_at_most_retry(&mut *self.inner, &mut vec0[..self.read_block_len])?
             }
             else {
-                // Otherwise, perform a vectored read into the two contiguous region slices.
-                let rem = self.read_block_len - vec0.len();
+                let mut read_len = read_at_most_retry(&mut *self.inner, vec0)?;
 
-                let ring_vectors = &mut [IoSliceMut::new(vec0), IoSliceMut::new(&mut vec1[..rem])];
+                if read_len == vec0.len() {
+                    let rem = self.read_block_len - read_len;
+                    read_len += read_at_most_retry(&mut *self.inner, &mut vec1[..rem])?;
+                }
 
-                self.inner.read_vectored(ring_vectors)?
+                read_len
             };
 
             // Increment the write position, taking into account wrap-around.
@@ -147,6 +203,29 @@ impl<'s> MediaSourceStream<'s> {
         Ok(())
     }
 
+    /// Reads up-to `buf.len()` bytes from the stream into `buf`.
+    fn read_into(&mut self, mut buf: &mut [u8]) -> io::Result<usize> {
+        let read_len = buf.len();
+
+        while !buf.is_empty() {
+            // Refill the buffer cache if required.
+            self.fetch()?;
+
+            let readable = self.continguous_buf();
+
+            if readable.is_empty() {
+                break;
+            }
+
+            let count = cmp::min(readable.len(), buf.len());
+            buf[..count].copy_from_slice(&readable[..count]);
+            buf = &mut buf[count..];
+            self.consume(count);
+        }
+
+        Ok(read_len - buf.len())
+    }
+
     /// Advances the read position by `len` bytes, taking into account wrap-around.
     #[inline(always)]
     fn consume(&mut self, len: usize) {
@@ -165,6 +244,7 @@ impl<'s> MediaSourceStream<'s> {
     }
 
     /// Resets the read-ahead buffer, and sets the absolute stream position to `pos`.
+    #[cfg(feature = "std")]
     fn reset(&mut self, pos: u64) {
         self.read_pos = 0;
         self.write_pos = 0;
@@ -186,44 +266,34 @@ impl MediaSource for MediaSourceStream<'_> {
     }
 }
 
-impl io::Read for MediaSourceStream<'_> {
-    fn read(&mut self, mut buf: &mut [u8]) -> io::Result<usize> {
-        let read_len = buf.len();
-
-        while !buf.is_empty() {
-            // Refill the the buffer cache if required.
-            self.fetch()?;
-
-            // Consume bytes from the readable portion of the buffer cache and copy them into the
-            // remaining portion of the caller's buffer.
-            match self.continguous_buf().read(buf) {
-                Ok(0) => break,
-                Ok(count) => {
-                    buf = &mut buf[count..];
-                    self.consume(count);
-                }
-                Err(ref e) if e.kind() == io::ErrorKind::Interrupted => {}
-                Err(e) => return Err(e),
-            }
-        }
-
-        // The actual amount read is the original length of the caller's buffer minus the amount of
-        // that buffer that is remaining.
-        Ok(read_len - buf.len())
+#[cfg(feature = "std")]
+impl std::io::Read for MediaSourceStream<'_> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.read_into(buf)
     }
 }
 
-impl io::Seek for MediaSourceStream<'_> {
-    fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
+#[cfg(not(feature = "std"))]
+impl Read for MediaSourceStream<'_> {
+    type Error = io::Error;
+
+    fn read_exact(&mut self, buf: &mut [u8]) -> io::Result<()> {
+        self.read_buf_exact(buf)
+    }
+}
+
+#[cfg(feature = "std")]
+impl Seek for MediaSourceStream<'_> {
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
         // The current position of the underlying reader is ahead of the current position of the
         // MediaSourceStream by how ever many bytes have not been read from the read-ahead buffer
         // yet. When seeking from the current position adjust the position delta to offset that
         // difference.
         let pos = match pos {
-            io::SeekFrom::Current(0) => return Ok(self.pos()),
-            io::SeekFrom::Current(delta_pos) => {
+            SeekFrom::Current(0) => return Ok(self.pos()),
+            SeekFrom::Current(delta_pos) => {
                 let delta = delta_pos - self.unread_buffer_len() as i64;
-                self.inner.seek(io::SeekFrom::Current(delta))
+                self.inner.seek(SeekFrom::Current(delta))
             }
             _ => self.inner.seek(pos),
         }?;
@@ -303,8 +373,7 @@ impl ReadBytes for MediaSourceStream<'_> {
     }
 
     fn read_buf(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        // Implemented via io::Read trait.
-        let read = self.read(buf)?;
+        let read = self.read_into(buf)?;
 
         // Unlike the io::Read trait, ByteStream returns an end-of-stream error when no more data
         // can be read. If a non-zero read is requested, and 0 bytes are read, return an
@@ -314,14 +383,11 @@ impl ReadBytes for MediaSourceStream<'_> {
 
     fn read_buf_exact(&mut self, mut buf: &mut [u8]) -> io::Result<()> {
         while !buf.is_empty() {
-            match self.read(buf) {
-                Ok(0) => break,
-                Ok(count) => {
-                    buf = &mut buf[count..];
-                }
-                Err(ref e) if e.kind() == io::ErrorKind::Interrupted => {}
-                Err(e) => return Err(e),
+            let count = self.read_into(buf)?;
+            if count == 0 {
+                break;
             }
+            buf = &mut buf[count..];
         }
 
         if !buf.is_empty() { unexpected_eof_error() } else { Ok(()) }
@@ -338,16 +404,17 @@ impl ReadBytes for MediaSourceStream<'_> {
     }
 
     fn ignore_bytes(&mut self, mut count: u64) -> io::Result<()> {
-        // If the stream is seekable and the number of bytes to ignore is large, perform a seek
-        // first. Note that ignored bytes are rewindable. Therefore, ensure the ring-buffer is
-        // full after the seek just like if bytes were ignored by consuming them instead.
-        let ring_len = self.ring.len() as u64;
-
-        // Only apply the optimization if seeking 2x or more than the ring-buffer size.
-        while count >= 2 * ring_len && self.is_seekable() {
-            let delta = count.clamp(0, i64::MAX as u64).sub(ring_len);
-            self.seek(io::SeekFrom::Current(delta as i64))?;
-            count -= delta;
+        #[cfg(feature = "std")]
+        {
+            let ring_len = self.ring.len() as u64;
+            // If the stream is seekable and the number of bytes to ignore is large, perform a seek
+            // first. Note that ignored bytes are rewindable. Therefore, ensure the ring-buffer is
+            // full after the seek just like if bytes were ignored by consuming them instead.
+            while count >= 2 * ring_len && self.is_seekable() {
+                let delta = count.clamp(0, i64::MAX as u64).sub(ring_len);
+                self.seek(SeekFrom::Current(delta as i64))?;
+                count -= delta;
+            }
         }
 
         // Ignore the remaining bytes be consuming samples from the ring-buffer.
@@ -455,7 +522,7 @@ impl SeekBuffered for MediaSourceStream<'_> {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "std"))]
 mod tests {
     use super::{MediaSourceStream, ReadBytes, SeekBuffered};
     use std::io::{Cursor, Read};

@@ -7,10 +7,11 @@
 
 //! The `errors` module defines the common error type.
 
-use std::error;
-use std::fmt;
-use std::io;
-use std::result;
+use core::error;
+use core::fmt;
+use core::result;
+
+use crate::io;
 
 /// `SeekErrorKind` is a list of generic reasons why a seek may fail.
 #[non_exhaustive]
@@ -42,7 +43,7 @@ impl SeekErrorKind {
 #[derive(Debug)]
 pub enum Error {
     /// An IO error occured while reading, writing, or seeking the stream.
-    IoError(std::io::Error),
+    IoError(io::Error),
     /// The stream contained malformed data and could not be decoded or demuxed.
     DecodeError(&'static str),
     /// The stream could not be seeked.
@@ -79,8 +80,8 @@ impl fmt::Display for Error {
     }
 }
 
-impl std::error::Error for Error {
-    fn cause(&self) -> Option<&dyn error::Error> {
+impl error::Error for Error {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match *self {
             Error::IoError(ref err) => Some(err),
             Error::DecodeError(_) => None,

@@ -5,11 +5,15 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use alloc::boxed::Box;
+use alloc::vec;
+use alloc::vec::Vec;
+
 use symphonia_common::xiph::audio::flac::StreamInfo;
 use symphonia_core::checksum::Crc16Ansi;
 use symphonia_core::errors::{Error, Result};
 use symphonia_core::formats::Packet;
-use symphonia_core::io::{BufReader, Monitor, ReadBytes, SeekBuffered};
+use symphonia_core::io::{BufReader, ErrorKind, Monitor, ReadBytes, SeekBuffered};
 use symphonia_core::util::bits;
 
 use log::warn;
@@ -439,7 +443,7 @@ impl PacketParser {
     {
         match self.read_fragment(reader, avg_frame_size) {
             Ok(fragment) => Ok(Some(fragment)),
-            Err(Error::IoError(err)) if err.kind() == std::io::ErrorKind::UnexpectedEof => {
+            Err(Error::IoError(err)) if err.kind() == ErrorKind::UnexpectedEof => {
                 // If the required information is available, verify that atleast the expected number
                 // of audio frames were demuxed.
                 if let Some(num_total_frames) = self.info.n_samples {

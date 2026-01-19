@@ -14,12 +14,18 @@ rust-version.workspace = true
 version.workspace = true
 
 [features]
-default = []
+default = ["std"]
+
+std = [
+    "ciborium-io/std",
+    "log/std",
+    "num-complex/std",
+]
 
 # SIMD support.
-opt-simd-sse = ["rustfft/sse"]
-opt-simd-avx = ["rustfft/avx"]
-opt-simd-neon = ["rustfft/neon"]
+opt-simd-sse = ["rustfft/sse", "std"]
+opt-simd-avx = ["rustfft/avx", "std"]
+opt-simd-neon = ["rustfft/neon", "std"]
 
 # Enable all SIMD support.
 opt-simd = [
@@ -35,10 +41,13 @@ exp-video-codecs = []
 [dependencies]
 bitflags = "2.4.2"
 bytemuck = "1.7"
-lazy_static = "1.4.0"
-log = "0.4"
-num-complex = "0.4"
+hashbrown = { version = "0.16", default-features = false, features = ["alloc", "default-hasher"] }
+lazy_static = { version = "1.4.0", default-features = false, features = ["spin_no_std"] }
+log = { version = "0.4", default-features = false }
+num-complex = { version = "0.4", default-features = false, features = ["libm"] }
+num-traits = { version = "0.2", default-features = false, features = ["libm"] }
 smallvec = "1.13.1"
+ciborium-io = { version = "0.2", default-features = false, features = ["alloc"] }
 
 [dependencies.rustfft]
 version = "6.1.0"

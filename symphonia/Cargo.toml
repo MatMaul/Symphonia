@@ -19,7 +19,13 @@ all-features = true
 
 [features]
 # Only royalty-free open standard codecs and formats are enabled by default.
-default = ["all-meta", "adpcm", "flac", "mkv", "ogg", "pcm", "vorbis", "wav"]
+default = ["std", "all-meta", "adpcm", "flac", "mkv", "ogg", "pcm", "vorbis", "wav"]
+
+std = [
+    "symphonia-core/std",
+    "symphonia-bundle-flac/std",
+    "symphonia-metadata/std",
+]
 
 # Feature flags to enable specific codecs, container, and standalone metadata formats.
 aac = ["dep:symphonia-codec-aac"]
@@ -103,6 +109,7 @@ lazy_static = "1.4.0"
 [dependencies.symphonia-core]
 version = "0.6.0"
 path = "../symphonia-core"
+default-features = false
 
 [dependencies.symphonia-metadata]
 version = "0.6.0"
@@ -114,6 +121,7 @@ default-features = false
 version = "0.6.0"
 path = "../symphonia-bundle-flac"
 optional = true
+default-features = false
 
 [dependencies.symphonia-bundle-mp3]
 version = "0.6.0"

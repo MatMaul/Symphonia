@@ -5,8 +5,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::cmp::min;
-use std::io;
+use core::cmp::min;
+
+use crate::io;
 
 use crate::io::ReadBytes;
 use crate::util::bits::*;
@@ -18,9 +19,11 @@ fn end_of_bitstream_error<T>() -> io::Result<T> {
 pub mod vlc {
     //! The `vlc` module provides support for decoding variable-length codes (VLC).
 
-    use std::collections::{BTreeMap, VecDeque};
-    use std::io;
-    use std::num::NonZero;
+    use alloc::collections::{BTreeMap, VecDeque};
+    use alloc::vec::Vec;
+    use core::num::NonZero;
+
+    use crate::io;
 
     fn codebook_error<T>(desc: &'static str) -> io::Result<T> {
         Err(io::Error::other(desc))
@@ -344,8 +347,10 @@ pub mod vlc {
                             let end = start + count;
 
                             for prefix in start..end {
-                                let offset =
-                                    prefix.reverse_bits().rotate_left(u32::from(block.width));
+                                let offset = (prefix as u16)
+                                    .reverse_bits()
+                                    .rotate_left(u32::from(block.width))
+                                    as usize;
 
                                 table[table_base + offset] = value_entry;
                             }
@@ -458,7 +463,7 @@ pub mod vlc {
 }
 
 mod private {
-    use std::io;
+    use crate::io;
 
     pub trait FetchBitsLtr {
         /// Discard any remaining bits in the source and fetch 1 or more new bits.
@@ -793,7 +798,7 @@ pub trait ReadBitsLtr: private::FetchBitsLtr {
             match codebook.table[base + (bits >> bit_shift) as usize] {
                 vlc::Entry::Jump { index } => {
                     bits <<= bits_per_block;
-                    base = index.into() as usize;
+                    base = <E::IndexType as Into<u32>>::into(index) as usize;
                 }
                 vlc::Entry::Value { value, code_len } => {
                     let code_len = u32::from(code_len.get());
@@ -897,13 +902,13 @@ impl private::FetchBitsLtr for BitReaderLtr<'_> {
     }
 
     fn fetch_bits(&mut self) -> io::Result<()> {
-        let read_len = min(self.buf.len(), std::mem::size_of::<u64>());
+        let read_len = min(self.buf.len(), core::mem::size_of::<u64>());
 
         if read_len == 0 {
             return end_of_bitstream_error();
         }
 
-        let mut buf = [0u8; std::mem::size_of::<u64>()];
+        let mut buf = [0u8; core::mem::size_of::<u64>()];
 
         buf[..read_len].copy_from_slice(&self.buf[..read_len]);
 
@@ -1233,7 +1238,7 @@ pub trait ReadBitsRtl: private::FetchBitsRtl {
             match codebook.table[base + (bits & bit_mask) as usize] {
                 vlc::Entry::Jump { index } => {
                     bits >>= bits_per_block;
-                    base = index.into() as usize;
+                    base = <E::IndexType as Into<u32>>::into(index) as usize;
                 }
                 vlc::Entry::Value { value, code_len } => {
                     let code_len = u32::from(code_len.get());
@@ -1337,13 +1342,13 @@ impl private::FetchBitsRtl for BitReaderRtl<'_> {
     }
 
     fn fetch_bits(&mut self) -> io::Result<()> {
-        let read_len = min(self.buf.len(), std::mem::size_of::<u64>());
+        let read_len = min(self.buf.len(), core::mem::size_of::<u64>());
 
         if read_len == 0 {
             return end_of_bitstream_error();
         }
 
-        let mut buf = [0u8; std::mem::size_of::<u64>()];
+        let mut buf = [0u8; core::mem::size_of::<u64>()];
 
         buf[..read_len].copy_from_slice(&self.buf[..read_len]);
 
@@ -1382,6 +1387,7 @@ impl FiniteBitStream for BitReaderRtl<'_> {
 
 #[cfg(test)]
 mod tests {
+    use alloc::vec::Vec;
     use rand::{RngCore, SeedableRng};
 
     use super::vlc::{BitOrder, Codebook, CodebookBuilder, Entry8x8};
@@ -1757,7 +1763,7 @@ mod tests {
         let decoded: Vec<u8> =
             (0..text.len()).map(|_| bs.read_codebook(&codebook).unwrap().0).collect();
 
-        assert_eq!(text, std::str::from_utf8(&decoded).unwrap());
+        assert_eq!(text, core::str::from_utf8(&decoded).unwrap());
     }
 
     #[test]
@@ -2074,7 +2080,7 @@ mod tests {
         let decoded: Vec<u8> =
             (0..text.len()).map(|_| bs.read_codebook(&codebook).unwrap().0).collect();
 
-        assert_eq!(text, std::str::from_utf8(&decoded).unwrap());
+        assert_eq!(text, core::str::from_utf8(&decoded).unwrap());
     }
 
     #[test]

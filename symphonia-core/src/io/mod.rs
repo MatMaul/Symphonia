@@ -12,15 +12,89 @@
 //!  * A `Reader` consumes a `&[u8]`.
 //!
 //! The sole exception to this rule is [`MediaSourceStream`] which consumes sources implementing
-//! [`MediaSource`] (aka. [`std::io::Read`]).
+//! [`MediaSource`] (aka. [`ciborium_io::Read`]).
 //!
 //! All `Reader`s and `Stream`s operating on bytes of data at a time implement the [`ReadBytes`]
 //! trait. Likewise, all `Reader`s and `Stream`s operating on bits of data at a time implement
 //! either the [`ReadBitsLtr`] or [`ReadBitsRtl`] traits depending on the order in which they
 //! consume bits.
 
-use std::io;
-use std::mem;
+use alloc::boxed::Box;
+use alloc::vec;
+use core::mem;
+
+#[cfg(feature = "std")]
+pub use std::io::{Error, ErrorKind, Result, Seek, SeekFrom};
+
+#[cfg(not(feature = "std"))]
+mod no_std_io {
+    use core::fmt;
+
+    /// A minimal error kind list for no_std I/O.
+    #[derive(Debug, Copy, Clone, Eq, PartialEq)]
+    pub enum ErrorKind {
+        /// The end of the stream was reached unexpectedly.
+        UnexpectedEof,
+        /// The operation was interrupted before completion.
+        Interrupted,
+        /// A catch-all error for other failures.
+        Other,
+    }
+
+    /// A minimal no_std I/O error type.
+    #[derive(Debug, Clone)]
+    pub struct Error {
+        kind: ErrorKind,
+        message: Option<&'static str>,
+    }
+
+    impl Error {
+        /// Creates a new error with a kind and static message.
+        pub const fn new(kind: ErrorKind, message: &'static str) -> Self {
+            Error { kind, message: Some(message) }
+        }
+
+        /// Creates a new error of kind `Other` with a static message.
+        pub const fn other(message: &'static str) -> Self {
+            Error::new(ErrorKind::Other, message)
+        }
+
+        /// Returns the error kind.
+        pub const fn kind(&self) -> ErrorKind {
+            self.kind
+        }
+    }
+
+    impl From<ErrorKind> for Error {
+        fn from(kind: ErrorKind) -> Self {
+            Error { kind, message: None }
+        }
+    }
+
+    impl fmt::Display for Error {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            if let Some(message) = self.message {
+                return f.write_str(message);
+            }
+            let text = match self.kind {
+                ErrorKind::UnexpectedEof => "unexpected end of stream",
+                ErrorKind::Interrupted => "operation interrupted",
+                ErrorKind::Other => "i/o error",
+            };
+            f.write_str(text)
+        }
+    }
+
+    impl core::error::Error for Error {}
+
+    pub type Result<T> = core::result::Result<T, Error>;
+}
+
+#[cfg(not(feature = "std"))]
+pub use no_std_io::{Error, ErrorKind, Result};
+
+use crate::io;
+pub use ciborium_io::{Read, Write};
 
 mod bit;
 mod buf_reader;
@@ -34,12 +108,12 @@ pub use media_source_stream::{MediaSourceStream, MediaSourceStreamOptions};
 pub use monitor_stream::{Monitor, MonitorStream};
 pub use scoped_stream::ScopedStream;
 
-/// `MediaSource` is a composite trait of [`std::io::Read`] and [`std::io::Seek`]. A source *must*
-/// implement this trait to be used by [`MediaSourceStream`].
+/// `MediaSource` is a composite trait of [`ciborium_io::Read`] and, when `std` is enabled,
+/// [`std::io::Seek`]. A source *must* implement this trait to be used by [`MediaSourceStream`].
 ///
-/// Despite requiring the [`std::io::Seek`] trait, seeking is an optional capability that can be
-/// queried at runtime.
-pub trait MediaSource: io::Read + io::Seek + Send + Sync {
+/// Seeking is an optional capability that can be queried at runtime.
+#[cfg(feature = "std")]
+pub trait MediaSource: Read<Error = Error> + std::io::Read + Seek + Send + Sync {
     /// Returns if the source is seekable. This may be an expensive operation.
     fn is_seekable(&self) -> bool;
 
@@ -47,6 +121,16 @@ pub trait MediaSource: io::Read + io::Seek + Send + Sync {
     fn byte_len(&self) -> Option<u64>;
 }
 
+#[cfg(not(feature = "std"))]
+pub trait MediaSource: Read<Error = Error> + Send + Sync {
+    /// Returns if the source is seekable. This may be an expensive operation.
+    fn is_seekable(&self) -> bool;
+
+    /// Returns the length in bytes, if available. This may be an expensive operation.
+    fn byte_len(&self) -> Option<u64>;
+}
+
+#[cfg(feature = "std")]
 impl MediaSource for std::fs::File {
     /// Returns if the `std::io::File` backing the `MediaSource` is seekable.
     ///
@@ -74,13 +158,14 @@ impl MediaSource for std::fs::File {
     }
 }
 
-impl<T: std::convert::AsRef<[u8]> + Send + Sync> MediaSource for io::Cursor<T> {
-    /// Always returns true since a `io::Cursor<u8>` is always seekable.
+#[cfg(feature = "std")]
+impl<T: std::convert::AsRef<[u8]> + Send + Sync> MediaSource for std::io::Cursor<T> {
+    /// Always returns true since a `std::io::Cursor<u8>` is always seekable.
     fn is_seekable(&self) -> bool {
         true
     }
 
-    /// Returns the length in bytes of the `io::Cursor<u8>` backing the `MediaSource`.
+    /// Returns the length in bytes of the `std::io::Cursor<u8>` backing the `MediaSource`.
     fn byte_len(&self) -> Option<u64> {
         // Get the underlying container, usually &Vec<T>.
         let inner = self.get_ref();
@@ -89,13 +174,13 @@ impl<T: std::convert::AsRef<[u8]> + Send + Sync> MediaSource for io::Cursor<T> {
     }
 }
 
-/// `ReadOnlySource` wraps any source implementing [`std::io::Read`] in an unseekable
+/// `ReadOnlySource` wraps any source implementing [`ciborium_io::Read`] in an unseekable
 /// [`MediaSource`].
-pub struct ReadOnlySource<R: io::Read> {
+pub struct ReadOnlySource<R: Read<Error = Error>> {
     inner: R,
 }
 
-impl<R: io::Read + Send> ReadOnlySource<R> {
+impl<R: Read<Error = Error> + Send> ReadOnlySource<R> {
     /// Instantiates a new `ReadOnlySource<R>` by taking ownership and wrapping the provided
     /// `Read`er.
     pub fn new(inner: R) -> Self {
@@ -118,7 +203,8 @@ impl<R: io::Read + Send> ReadOnlySource<R> {
     }
 }
 
-impl<R: io::Read + Send + Sync> MediaSource for ReadOnlySource<R> {
+#[cfg(feature = "std")]
+impl<R: Read<Error = Error> + std::io::Read + Send + Sync> MediaSource for ReadOnlySource<R> {
     fn is_seekable(&self) -> bool {
         false
     }
@@ -128,15 +214,37 @@ impl<R: io::Read + Send + Sync> MediaSource for ReadOnlySource<R> {
     }
 }
 
-impl<R: io::Read> io::Read for ReadOnlySource<R> {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.inner.read(buf)
+#[cfg(not(feature = "std"))]
+impl<R: Read<Error = Error> + Send + Sync> MediaSource for ReadOnlySource<R> {
+    fn is_seekable(&self) -> bool {
+        false
+    }
+
+    fn byte_len(&self) -> Option<u64> {
+        None
     }
 }
 
-impl<R: io::Read> io::Seek for ReadOnlySource<R> {
-    fn seek(&mut self, _: io::SeekFrom) -> io::Result<u64> {
-        Err(io::Error::other("source does not support seeking"))
+#[cfg(not(feature = "std"))]
+impl<R: Read<Error = Error>> Read for ReadOnlySource<R> {
+    type Error = Error;
+
+    fn read_exact(&mut self, buf: &mut [u8]) -> Result<()> {
+        self.inner.read_exact(buf)
+    }
+}
+
+#[cfg(feature = "std")]
+impl<R: Read<Error = Error> + std::io::Read> std::io::Read for ReadOnlySource<R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        std::io::Read::read(&mut self.inner, buf)
+    }
+}
+
+#[cfg(feature = "std")]
+impl<R: Read<Error = Error> + std::io::Read> Seek for ReadOnlySource<R> {
+    fn seek(&mut self, _: SeekFrom) -> Result<u64> {
+        Err(Error::other("source does not support seeking"))
     }
 }
 

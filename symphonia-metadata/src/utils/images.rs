@@ -7,7 +7,8 @@
 
 //! Image utilities.
 
-use std::num::NonZeroU8;
+use alloc::string::String;
+use core::num::NonZeroU8;
 
 use symphonia_core::errors::{Result, decode_error, unsupported_error};
 use symphonia_core::io::{BufReader, ReadBytes};
@@ -84,7 +85,7 @@ fn parse_jpeg(mut reader: BufReader<'_>) -> Result<ImageInfo> {
             let color_mode = ColorMode::Direct(ColorModel::RGB(non_zero(8)));
 
             let info = ImageInfo {
-                media_type: "image/jpeg".to_string(),
+                media_type: String::from("image/jpeg"),
                 dimensions: Size { width: u32::from(width), height: u32::from(height) },
                 color_mode,
             };
@@ -165,7 +166,7 @@ fn parse_png(mut reader: BufReader<'_>) -> Result<ImageInfo> {
     };
 
     let info = ImageInfo {
-        media_type: "image/png".to_string(),
+        media_type: String::from("image/png"),
         dimensions: Size { width, height },
         color_mode,
     };
@@ -256,7 +257,7 @@ fn parse_bitmap(mut reader: BufReader<'_>) -> Result<ImageInfo> {
     };
 
     let info = ImageInfo {
-        media_type: "image/bmp".to_string(),
+        media_type: String::from("image/bmp"),
         dimensions: Size { width, height },
         color_mode,
     };
@@ -286,7 +287,7 @@ fn parse_gif(mut reader: BufReader<'_>) -> Result<ImageInfo> {
     };
 
     let info = ImageInfo {
-        media_type: "image/gif".to_string(),
+        media_type: String::from("image/gif"),
         dimensions: Size { width: u32::from(width), height: u32::from(height) },
         color_mode,
     };

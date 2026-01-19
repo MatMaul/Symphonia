@@ -8,7 +8,9 @@
 //! The `format` module provides the traits and support structures necessary to implement media
 //! demuxers.
 
-use std::fmt;
+use alloc::boxed::Box;
+use alloc::string::{String, ToString};
+use core::fmt;
 
 use crate::codecs::{CodecParameters, audio, subtitle, video};
 use crate::common::FourCc;
@@ -31,6 +33,7 @@ pub mod prelude {
     };
 }
 
+#[cfg(feature = "std")]
 pub mod probe;
 
 /// A `FormatId` is a unique identifier used to identify a specific container format.
@@ -587,6 +590,8 @@ impl Packet {
 
 pub mod util {
     //! Helper utilities for implementing `FormatReader`s.
+
+    use alloc::vec::Vec;
 
     use super::Packet;
 

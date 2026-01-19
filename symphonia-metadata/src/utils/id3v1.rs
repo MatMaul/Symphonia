@@ -7,9 +7,11 @@
 
 //! Utilities for ID3v1 defacto-standards used by many metadata formats.
 
+use alloc::string::String;
+
 /// Try to get the genre name for the ID3v1 genre number.
 pub fn get_genre_name(num: u8) -> Option<String> {
-    GENRES.get(usize::from(num)).map(|genre| genre.to_string())
+    GENRES.get(usize::from(num)).map(|genre| String::from(*genre))
 }
 
 const GENRES: &[&str] = &[

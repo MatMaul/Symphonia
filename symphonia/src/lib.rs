@@ -5,6 +5,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+#![cfg_attr(not(feature = "std"), no_std)]
 #![warn(rust_2018_idioms)]
 #![forbid(unsafe_code)]
 
@@ -232,6 +233,8 @@ pub mod default {
     use lazy_static::lazy_static;
 
     use symphonia_core::codecs::registry::CodecRegistry;
+
+    #[cfg(feature = "std")]
     use symphonia_core::formats::probe::Probe;
 
     lazy_static! {
@@ -242,6 +245,7 @@ pub mod default {
         };
     }
 
+    #[cfg(feature = "std")]
     lazy_static! {
         static ref PROBE: Probe = {
             let mut probe: Probe = Default::default();
@@ -266,6 +270,7 @@ pub mod default {
     ///
     /// This function is lazy and does not instantiate the `Probe` until the first call to this
     /// function.
+    #[cfg(feature = "std")]
     pub fn get_probe() -> &'static Probe {
         &PROBE
     }
@@ -303,6 +308,7 @@ pub mod default {
     /// registered.
     ///
     /// Use this function to easily populate a custom probe with all enabled formats.
+    #[cfg(feature = "std")]
     pub fn register_enabled_formats(probe: &mut Probe) {
         // Formats
         #[cfg(feature = "aac")]

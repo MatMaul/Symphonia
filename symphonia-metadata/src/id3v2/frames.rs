@@ -7,8 +7,11 @@
 
 //! ID3v2 frame readers.
 
-use std::collections::HashMap;
-use std::str;
+use alloc::string::String;
+use alloc::vec::Vec;
+use core::str;
+
+use hashbrown::HashMap;
 
 use symphonia_core::errors::{Result, decode_error};
 use symphonia_core::io::{BufReader, FiniteStream, ReadBytes};
@@ -424,7 +427,7 @@ fn validate_frame_id(id: &[u8]) -> bool {
 ///
 /// Assumes the bytes are valid ASCII characters. Panics otherwise.
 fn from_ascii(id: &[u8]) -> &str {
-    std::str::from_utf8(id).expect("ascii only")
+    str::from_utf8(id).expect("ascii only")
 }
 
 /// Get the default frame reader for unknown frames.
@@ -434,7 +437,7 @@ fn null_frame_reader() -> (FrameReader, Option<RawTagParser>) {
 
 /// Find a frame reader and optional raw tag parser for modern ID3v2.3+ frames.
 fn find_frame_reader(id: [u8; 4]) -> (FrameReader, Option<RawTagParser>) {
-    FRAME_READERS.get(&id).map(|a| a.to_owned()).unwrap_or_else(|| null_frame_reader())
+    FRAME_READERS.get(&id).copied().unwrap_or_else(|| null_frame_reader())
 }
 
 /// Find a frame reader and optional raw tag parser for legacy ID3v2.2 frames by finding an

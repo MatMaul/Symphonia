@@ -7,14 +7,18 @@
 
 //! Frame body readers.
 
-use std::char;
-use std::collections::HashMap;
-use std::io;
-use std::str;
-use std::sync::Arc;
+use alloc::boxed::Box;
+use alloc::string::String;
+use alloc::sync::Arc;
+use alloc::vec::Vec;
+use alloc::vec;
+use core::char;
+use core::str;
+
+use hashbrown::HashMap;
 
 use symphonia_core::errors::{Result, decode_error, unsupported_error};
-use symphonia_core::io::{BufReader, FiniteStream, ReadBytes};
+use symphonia_core::io::{self, BufReader, FiniteStream, ReadBytes};
 use symphonia_core::meta::RawTag;
 use symphonia_core::meta::RawTagSubField;
 use symphonia_core::meta::{Chapter, RawValue, StandardTag, Tag, Visual};
@@ -55,7 +59,7 @@ impl<'a> FrameInfo<'a> {
     /// Panics if the frame ID is invalid.
     pub fn new(id: &'a [u8], major_version: u8, raw_tag_parser: Option<RawTagParser>) -> Self {
         FrameInfo {
-            id: std::str::from_utf8(id).expect("validated frame id bytes"),
+            id: str::from_utf8(id).expect("validated frame id bytes"),
             major_version,
             raw_tag_parser,
         }
@@ -145,7 +149,7 @@ fn read_date(reader: &mut BufReader<'_>) -> Result<String> {
     }
 
     // Safety: The data array only contains ASCII digits.
-    Ok(str::from_utf8(&date).unwrap().to_string())
+    Ok(String::from(str::from_utf8(&date).unwrap()))
 }
 
 /// Read and validate an encoding indicator.
@@ -174,7 +178,7 @@ fn read_lang_code(reader: &mut BufReader<'_>) -> Result<Option<String>> {
     }
     else {
         // Convert to lowercase string.
-        Some(std::str::from_utf8(&code).unwrap().to_ascii_lowercase())
+        Some(str::from_utf8(&code).unwrap().to_ascii_lowercase())
     };
 
     Ok(code)
@@ -310,7 +314,7 @@ pub fn read_apic_frame(mut reader: BufReader<'_>, frame: &FrameInfo<'_>) -> Resu
             b"GIF" => Some("image/gif"),
             _ => None,
         }
-        .map(|s| s.to_string())
+        .map(String::from)
     }
     else {
         // APIC frames use a null-terminated ASCII media-type string.

@@ -7,8 +7,13 @@
 
 //! Vorbis Comment reading.
 
-use std::collections::{BTreeMap, HashMap};
-use std::sync::Arc;
+use alloc::collections::BTreeMap;
+use alloc::string::String;
+use alloc::sync::Arc;
+use alloc::vec;
+use alloc::vec::Vec;
+
+use hashbrown::HashMap;
 
 use lazy_static::lazy_static;
 use log::warn;
@@ -301,7 +306,7 @@ fn try_parse_chapter_info_key(key: &str) -> Option<ChapterInfoKey> {
     // The remainder of the key may be an optional suffix containing a key for additional
     // information pertaining to the chapter such as the name. If there is no suffix, then this is a
     // chapter timestamp comment.
-    let field = iter.as_str().to_string();
+    let field = String::from(iter.as_str());
 
     let intent =
         if field.is_empty() { ChapterInfoIntent::Time } else { ChapterInfoIntent::Tag(field) };
@@ -343,7 +348,7 @@ fn parse_vorbis_comment(buf: &[u8]) -> Result<ParsedComment> {
 
         if let Some(key) = try_parse_chapter_info_key(&key) {
             // A comment with a key starting with "CHAPTERXXX" is a chapter information comment.
-            Ok(ParsedComment::ChapterInfo(ChapterInfo { key, value: value.to_string() }))
+            Ok(ParsedComment::ChapterInfo(ChapterInfo { key, value: String::from(value) }))
         }
         else if key.eq_ignore_ascii_case("metadata_block_picture") {
             // A comment with a key "METADATA_BLOCK_PICTURE" is a FLAC picture block encoded in

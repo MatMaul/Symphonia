@@ -13,12 +13,23 @@ repository.workspace = true
 rust-version.workspace = true
 version.workspace = true
 
+[features]
+default = ["metadata", "std"]
+
+std = [
+    "log/std",
+    "symphonia-core/std",
+]
+
+metadata = ["symphonia-metadata"]
+
 [dependencies]
-log = "0.4"
-symphonia-core = { version = "0.6.0", path = "../symphonia-core" }
+log = { version = "0.4", default-features = false }
+symphonia-core = { version = "0.6.0", path = "../symphonia-core", default-features = false }
 
 [dependencies.symphonia-metadata]
 version = "0.6.0"
 path = "../symphonia-metadata"
 default-features = false
 features = ["flac"]
+optional = true

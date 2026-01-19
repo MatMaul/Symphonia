@@ -5,8 +5,14 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::io::{Seek, SeekFrom};
+use alloc::boxed::Box;
+use alloc::vec;
+use alloc::vec::Vec;
 
+#[cfg(feature = "std")]
+use symphonia_core::io::{Seek, SeekFrom};
+
+#[cfg(feature = "std")]
 use symphonia_core::support_format;
 
 use symphonia_common::xiph::audio::flac::{MetadataBlockHeader, MetadataBlockType, StreamInfo};
@@ -18,6 +24,7 @@ use symphonia_core::errors::{
     Error, Result, SeekErrorKind, decode_error, seek_error, unsupported_error,
 };
 use symphonia_core::formats::prelude::*;
+#[cfg(feature = "std")]
 use symphonia_core::formats::probe::{ProbeFormatData, ProbeableFormat, Score, Scoreable};
 use symphonia_core::formats::util::{SeekIndex, SeekSearchResult};
 use symphonia_core::formats::well_known::FORMAT_ID_FLAC;
@@ -196,12 +203,14 @@ impl<'s> FlacReader<'s> {
     }
 }
 
+#[cfg(feature = "std")]
 impl Scoreable for FlacReader<'_> {
     fn score(_src: ScopedStream<&mut MediaSourceStream<'_>>) -> Result<Score> {
         Ok(Score::Supported(255))
     }
 }
 
+#[cfg(feature = "std")]
 impl ProbeableFormat<'_> for FlacReader<'_> {
     fn try_probe_new(
         mss: MediaSourceStream<'_>,
@@ -240,6 +249,7 @@ impl FormatReader for FlacReader<'_> {
         &self.tracks
     }
 
+    #[cfg(feature = "std")]
     fn seek(&mut self, _mode: SeekMode, to: SeekTo) -> Result<SeekedTo> {
         if self.tracks.is_empty() {
             return seek_error(SeekErrorKind::Unseekable);
@@ -350,8 +360,7 @@ impl FormatReader for FlacReader<'_> {
             let sync = match self.parser.resync(&mut self.reader) {
                 Ok(sync) => sync,
                 Err(Error::IoError(err))
-                    if err.kind() == std::io::ErrorKind::UnexpectedEof
-                        && track.num_frames.is_none() =>
+                    if err.kind() == ErrorKind::UnexpectedEof && track.num_frames.is_none() =>
                 {
                     return seek_error(SeekErrorKind::OutOfRange);
                 }
@@ -382,6 +391,11 @@ impl FormatReader for FlacReader<'_> {
         debug!("seeked to packet_ts={} (delta={})", packet.ts, packet.ts as i64 - ts as i64);
 
         Ok(SeekedTo { track_id: 0, actual_ts: packet.ts, required_ts: ts })
+    }
+
+    #[cfg(not(feature = "std"))]
+    fn seek(&mut self, _mode: SeekMode, _to: SeekTo) -> Result<SeekedTo> {
+        seek_error(SeekErrorKind::Unseekable)
     }
 
     fn into_inner<'s>(self: Box<Self>) -> MediaSourceStream<'s>

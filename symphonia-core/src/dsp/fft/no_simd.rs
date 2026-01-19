@@ -5,13 +5,17 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::convert::TryInto;
-use std::f32;
+use alloc::boxed::Box;
+use core::convert::TryInto;
+use core::f32;
 
 use lazy_static::lazy_static;
 
 use crate::dsp::complex::Complex;
 use crate::dsp::fft::MAX_SIZE;
+
+#[cfg(not(feature = "std"))]
+use num_traits::float::Float;
 
 macro_rules! fft_twiddle_table {
     ($bi:expr, $name:ident) => {
@@ -21,7 +25,7 @@ macro_rules! fft_twiddle_table {
 
                 let mut table = [Default::default(); N >> 1];
 
-                let theta = std::f64::consts::PI / (N >> 1) as f64;
+                let theta = core::f64::consts::PI / (N >> 1) as f64;
 
                 for (k, t) in table.iter_mut().enumerate() {
                     let angle = theta * k as f64;

@@ -7,7 +7,12 @@
 
 //! An ID3v2 metadata reader.
 
-use std::collections::HashMap;
+use alloc::boxed::Box;
+use alloc::string::String;
+use alloc::vec::Vec;
+use alloc::vec;
+
+use hashbrown::HashMap;
 
 use symphonia_core::errors::{Result, decode_error, unsupported_error};
 use symphonia_core::formats::probe::{ProbeMetadataData, ProbeableMetadata, Score, Scoreable};
@@ -430,10 +435,10 @@ impl ChapterGroupBuilder {
                 debug!("id3v2: multiple top-level toc");
                 return self.error();
             }
-            self.root_toc_id = Some(toc.id.to_string())
+            self.root_toc_id = Some(toc.id.clone())
         }
 
-        self.tocs.insert(toc.id.to_string(), toc);
+        self.tocs.insert(toc.id.clone(), toc);
     }
 
     /// Add an ID3v2 chapter.
@@ -448,7 +453,7 @@ impl ChapterGroupBuilder {
         // later by order read.
         chap.read_order = self.chaps.len();
 
-        self.chaps.insert(chap.id.to_string(), chap);
+        self.chaps.insert(chap.id.clone(), chap);
     }
 
     /// Build a chapter group from the added ID3v2 table of contents and chapters.

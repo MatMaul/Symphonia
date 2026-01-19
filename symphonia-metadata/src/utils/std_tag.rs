@@ -11,7 +11,10 @@
 // would be too difficult to individually waive the lint.
 #![allow(dead_code)]
 
-use std::{collections::HashMap, sync::Arc};
+use alloc::string::String;
+use alloc::sync::Arc;
+
+use hashbrown::HashMap;
 
 use symphonia_core::meta::{ContentAdvisory, MetadataBuilder, RawTag, RawValue, StandardTag, Tag};
 
@@ -346,36 +349,47 @@ pub fn parse_itunes_content_advisory(v: Arc<String>) -> StandardTagPair {
 }
 
 pub fn parse_id3v2_genre(v: Arc<String>) -> StandardTagPair {
-    use regex_lite::Regex;
-
     use crate::utils::id3v1::get_genre_name;
 
-    // Regex that will match the following strings:
-    //
-    // "<NUMBER>"
-    // "<NAME>"
-    // "(<NUMBER>)"
-    // "(<NUMBER)<NAME>"
-    let re = Regex::new(r"^(?P<num0>[0-9]+)$|(?:\((?P<num1>[0-9]+)\))?(?P<name>.+)?$").unwrap();
+    let value = v.as_str();
 
-    // The regex will always match an empty string, therefore unwrapping is safe.
-    let caps = re.captures(v.as_str()).unwrap();
+    let mut name = None;
+    let mut num = None;
 
-    let name = if let Some(name) = caps.name("name") {
-        // A user-defined genre name provided.
-        Some(name.as_str().to_owned())
+    if !value.is_empty() && value.bytes().all(|b| b.is_ascii_digit()) {
+        num = Some(value);
     }
-    else if let Some(num) = caps.name("num0").or_else(|| caps.name("num1")) {
-        // Only genre number provided. Parse to u8, then lookup the genre name.
-        num.as_str().parse::<u8>().ok().and_then(get_genre_name)
+    else if let Some(stripped) = value.strip_prefix('(') {
+        if let Some(close_idx) = stripped.find(')') {
+            let num_str = &stripped[..close_idx];
+            let rest = &stripped[close_idx + 1..];
+
+            if !num_str.is_empty() && num_str.bytes().all(|b| b.is_ascii_digit()) {
+                if rest.is_empty() {
+                    num = Some(num_str);
+                }
+                else {
+                    name = Some(String::from(rest));
+                }
+            }
+            else {
+                name = Some(String::from(value));
+            }
+        }
+        else {
+            name = Some(String::from(value));
+        }
     }
     else {
-        // Empty string.
-        None
+        name = Some(String::from(value));
+    }
+
+    let resolved_name = match name {
+        Some(name) => Some(name),
+        None => num.and_then(|num| num.parse::<u8>().ok()).and_then(get_genre_name),
     };
 
-    // Fallback to the original value for the genre if one could not be parsed.
-    let genre = name
+    let genre = resolved_name
         .map(|name| StandardTag::Genre(Arc::new(name)))
         .unwrap_or_else(|| StandardTag::Genre(v));
 
@@ -392,24 +406,32 @@ fn parse_bool(v: Arc<String>) -> Option<bool> {
 
 /// Parse a string in the format "NUM/TOTAL" or "NUM" into a pair of optional integers.
 fn parse_m_of_n(v: Arc<String>) -> (Option<u64>, Option<u64>) {
-    use regex_lite::Regex;
+    let value = v.as_str();
 
-    let re = Regex::new(r"^(?P<m>[0-9]+)(/(?P<n>[0-9]+))?$").unwrap();
+    if let Some((left, right)) = value.split_once('/') {
+        if left.is_empty()
+            || right.is_empty()
+            || !left.bytes().all(|b| b.is_ascii_digit())
+            || !right.bytes().all(|b| b.is_ascii_digit())
+        {
+            return (None, None);
+        }
 
-    let mut opt_m = None;
-    let mut opt_n = None;
-
-    if let Some(caps) = re.captures(v.as_str()) {
-        opt_m = caps.name("m").and_then(|m| m.as_str().parse::<u64>().ok());
-        opt_n = caps.name("n").and_then(|n| n.as_str().parse::<u64>().ok());
+        let m = left.parse::<u64>().ok();
+        let n = right.parse::<u64>().ok();
+        return (m, n);
     }
 
-    (opt_m, opt_n)
+    if value.is_empty() || !value.bytes().all(|b| b.is_ascii_digit()) {
+        return (None, None);
+    }
+
+    (value.parse::<u64>().ok(), None)
 }
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use alloc::sync::Arc;
 
     use symphonia_core::meta::StandardTag;
 
