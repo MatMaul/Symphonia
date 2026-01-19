@@ -25,6 +25,8 @@ testvec/*/**/*.opus
 testvec/*/**/*.wav
 testvec/*/**/*.mov
 
+symphonia-codec-vorbis/tests/files
+
 # Benchmarking Files
 benchtest/*.aac
 benchtest/*.flac

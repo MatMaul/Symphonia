@@ -17,3 +17,6 @@ version.workspace = true
 log = "0.4"
 symphonia-core = { version = "0.6.0", path = "../symphonia-core" }
 symphonia-common = { version = "0.6.0", path = "../symphonia-common" }
+
+[dev-dependencies]
+symphonia-test = { version = "0.6.0", path = "../symphonia-test" }
