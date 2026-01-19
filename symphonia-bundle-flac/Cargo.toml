@@ -34,5 +34,8 @@ path = "../symphonia-metadata"
 default-features = false
 features = ["flac"]
 
+[dev-dependencies]
+symphonia-test = { version = "0.6.0", path = "../symphonia-test" }
+
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(fuzzing)'] }
