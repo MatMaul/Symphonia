@@ -145,8 +145,6 @@ fn flac_26_variable_blocksize_cuetools() {
 }
 
 #[test]
-#[ignore]
-// TODO fix
 fn flac_27_variable_blocksize_flake_011() {
     test_flac_file("subset/27 - old format variable blocksize file created with Flake 0.11.flac").unwrap();
 }

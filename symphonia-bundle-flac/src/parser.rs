@@ -605,9 +605,13 @@ fn strict_frame_header_check(
     // Sequence scoring: The fragment's blocking strategy is consistent with the stream
     // information block, and the sequence number (frame number or sample number) is
     // monotonic given the current state.
+    //
+    // Note: Old encoders like Flake 0.11 created variable block size streams but used the
+    // fixed blocking strategy (ByFrame). We allow ByFrame for all streams to maintain
+    // compatibility with these old files.
     let is_monotonic = match header.block_sequence {
         BlockSequence::BySample(sample) => !is_fixed && (sample > last_seq || sample == 0),
-        BlockSequence::ByFrame(frame) => is_fixed && (u64::from(frame) > last_seq || frame == 0),
+        BlockSequence::ByFrame(frame) => u64::from(frame) > last_seq || frame == 0,
     };
 
     if !is_monotonic {
