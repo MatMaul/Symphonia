@@ -23,7 +23,7 @@ use symphonia_core::codecs::audio::well_known::CODEC_ID_OPUS;
 use symphonia_core::codecs::audio::{AudioCodecParameters, AudioDecoderOptions};
 use symphonia_core::codecs::audio::{AudioDecoder, FinalizeResult};
 use symphonia_core::codecs::registry::{RegisterableAudioDecoder, SupportedAudioCodec};
-use symphonia_core::errors::{decode_error, unsupported_error, Result};
+use symphonia_core::errors::{Result, decode_error, unsupported_error};
 use symphonia_core::formats::Packet;
 use symphonia_core::support_audio_codec;
 
@@ -136,11 +136,7 @@ impl OpusDecoder {
             _ => unreachable!(),
         };
 
-        let frame_config = FrameConfig {
-            duration: frame_duration,
-            stereo,
-            code: frame_code,
-        };
+        let frame_config = FrameConfig { duration: frame_duration, stereo, code: frame_code };
 
         (mode, bandwidth, frame_config)
     }
@@ -202,13 +198,15 @@ impl OpusDecoder {
             let frame_len = frame_sizes[i];
             let frame_data = if frame_len > 0 {
                 Some(&data[data_offset..data_offset + frame_len])
-            } else {
+            }
+            else {
                 None
             };
 
             // Decode CELT frame.
             let decode_buf = &mut self.decode_buf[..frame_samples * self.channels];
-            let decoded = self.celt_decoder
+            let decoded = self
+                .celt_decoder
                 .decode(frame_data, decode_buf, frame_samples)
                 .map_err(|e| symphonia_core::errors::Error::DecodeError(e))?;
 
@@ -231,11 +229,7 @@ impl OpusDecoder {
     }
 
     /// Parse frame lengths from packet data.
-    fn parse_frame_lengths(
-        &self,
-        data: &[u8],
-        code: u8,
-    ) -> Result<(usize, Vec<usize>)> {
+    fn parse_frame_lengths(&self, data: &[u8], code: u8) -> Result<(usize, Vec<usize>)> {
         match code {
             0 => {
                 // One frame.
@@ -307,7 +301,8 @@ impl OpusDecoder {
                     let mut total_len = 0;
 
                     for _ in 0..frame_count - 1 {
-                        let (len, bytes) = self.parse_frame_length(&data_remaining[len_offset..])?;
+                        let (len, bytes) =
+                            self.parse_frame_length(&data_remaining[len_offset..])?;
                         sizes.push(len);
                         total_len += len;
                         len_offset += bytes;
@@ -318,7 +313,8 @@ impl OpusDecoder {
                     sizes.push(last_len);
 
                     Ok((frame_count, sizes))
-                } else {
+                }
+                else {
                     // Constant bitrate.
                     if data_remaining.len() % frame_count != 0 {
                         return decode_error("opus: CBR packet size not divisible");
@@ -340,7 +336,8 @@ impl OpusDecoder {
         let first = data[0] as usize;
         if first < 252 {
             Ok((first, 1))
-        } else {
+        }
+        else {
             if data.len() < 2 {
                 return decode_error("opus: unexpected end of packet");
             }
@@ -353,7 +350,7 @@ impl OpusDecoder {
     fn toc_extra_bytes(&self, code: u8, frame_count: usize) -> usize {
         match code {
             0 | 1 => 0,
-            2 => 1, // At least 1 byte for first frame length.
+            2 => 1,                   // At least 1 byte for first frame length.
             3 => 1 + frame_count - 1, // Count byte + (n-1) length bytes (minimum).
             _ => 0,
         }
@@ -379,7 +376,8 @@ impl AudioDecoder for OpusDecoder {
         if let Err(e) = self.decode_inner(packet) {
             self.buf.clear();
             Err(e)
-        } else {
+        }
+        else {
             Ok(self.buf.as_generic_audio_buffer_ref())
         }
     }

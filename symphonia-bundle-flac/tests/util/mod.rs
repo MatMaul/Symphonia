@@ -35,7 +35,8 @@ pub fn test_flac_file(filename: &str) -> Result<(), String> {
         Ok(stats) => {
             if stats.passed() {
                 Ok(())
-            } else {
+            }
+            else {
                 Err(format!(
                     "Test failed for {}: {} failed samples out of {}, max delta: {}, \
                      symphonia remaining: {}, ffmpeg remaining: {}",

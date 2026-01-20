@@ -30,8 +30,8 @@ use std::path::Path;
 use std::process::{Child, Command, Stdio};
 
 use symphonia::core::audio::GenericAudioBufferRef;
-use symphonia::core::codecs::audio::{AudioDecoder, AudioDecoderOptions};
 use symphonia::core::codecs::CodecParameters;
+use symphonia::core::codecs::audio::{AudioDecoder, AudioDecoderOptions};
 use symphonia::core::errors::Error as SymphoniaError;
 use symphonia::core::formats::probe::Hint;
 use symphonia::core::formats::{FormatOptions, FormatReader, TrackType};
@@ -47,7 +47,9 @@ pub enum TestError {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
-    #[error("Sample mismatch at packet {packet}, sample {sample}: symphonia={symphonia}, ffmpeg={ffmpeg}, delta={delta}")]
+    #[error(
+        "Sample mismatch at packet {packet}, sample {sample}: symphonia={symphonia}, ffmpeg={ffmpeg}, delta={delta}"
+    )]
     SampleMismatch { packet: u64, sample: u64, symphonia: f32, ffmpeg: f32, delta: f32 },
 
     #[error("Decoder configuration mismatch: {0}")]
@@ -59,7 +61,9 @@ pub enum TestError {
     #[error("No audio track found in file")]
     NoAudioTrack,
 
-    #[error("Remaining samples mismatch: symphonia has {symphonia} extra, ffmpeg has {ffmpeg} extra")]
+    #[error(
+        "Remaining samples mismatch: symphonia has {symphonia} extra, ffmpeg has {ffmpeg} extra"
+    )]
     RemainingSamplesMismatch { symphonia: u64, ffmpeg: u64 },
 }
 
@@ -130,9 +134,7 @@ pub struct TestStats {
 impl TestStats {
     /// Returns true if the test passed (no failed samples and no remaining samples mismatch).
     pub fn passed(&self) -> bool {
-        self.failed_samples == 0
-            && self.symphonia_remaining == 0
-            && self.ffmpeg_remaining == 0
+        self.failed_samples == 0 && self.symphonia_remaining == 0 && self.ffmpeg_remaining == 0
     }
 }
 
@@ -164,8 +166,7 @@ impl RefProcess {
             .stdout(Stdio::piped())
             .stderr(Stdio::null());
 
-        let child =
-            cmd.spawn().map_err(|e| TestError::FfmpegSpawnFailed(e.to_string()))?;
+        let child = cmd.spawn().map_err(|e| TestError::FfmpegSpawnFailed(e.to_string()))?;
 
         Ok(Self { child })
     }
@@ -211,7 +212,10 @@ impl DecoderInstance {
         self.decoder.codec_params().channels.as_ref().map(|ch| ch.count() as u64)
     }
 
-    fn next_audio_buf(&mut self, keep_going: bool) -> TestResult<Option<GenericAudioBufferRef<'_>>> {
+    fn next_audio_buf(
+        &mut self,
+        keep_going: bool,
+    ) -> TestResult<Option<GenericAudioBufferRef<'_>>> {
         loop {
             let packet = match self.format.next_packet() {
                 Ok(Some(packet)) => packet,
@@ -263,9 +267,8 @@ pub fn compare_decode<P: AsRef<Path>>(path: P, config: &TestConfig) -> TestResul
     let mut ref_process = RefProcess::spawn(config.ref_decoder, &path_str, config.gapless)?;
 
     // Open reference decoder output as a Symphonia stream (WAV format)
-    let ref_ms = Box::new(ReadOnlySource::new(BufReader::new(
-        ref_process.child.stdout.take().unwrap(),
-    )));
+    let ref_ms =
+        Box::new(ReadOnlySource::new(BufReader::new(ref_process.child.stdout.take().unwrap())));
     let ref_mss = MediaSourceStream::new(ref_ms, Default::default());
     let mut ref_inst = DecoderInstance::open(ref_mss, FormatOptions::default())?;
 
@@ -411,7 +414,10 @@ pub fn test_decode_files<P: AsRef<Path>>(
 }
 
 /// Collect all files matching a glob pattern in a directory.
-pub fn collect_test_files<P: AsRef<Path>>(dir: P, extension: &str) -> std::io::Result<Vec<std::path::PathBuf>> {
+pub fn collect_test_files<P: AsRef<Path>>(
+    dir: P,
+    extension: &str,
+) -> std::io::Result<Vec<std::path::PathBuf>> {
     let dir = dir.as_ref();
     let mut files = Vec::new();
 
@@ -466,9 +472,8 @@ where
     ));
 
     // Encode the WAV file
-    encoder(wav_path, &encoded_path).map_err(|e| {
-        TestError::FfmpegSpawnFailed(format!("Encoder failed: {}", e))
-    })?;
+    encoder(wav_path, &encoded_path)
+        .map_err(|e| TestError::FfmpegSpawnFailed(format!("Encoder failed: {}", e)))?;
 
     // Run the comparison test on the encoded file
     let result = compare_decode(&encoded_path, config);

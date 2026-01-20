@@ -55,11 +55,7 @@ impl ImdctState {
             twiddle.push((theta.cos(), theta.sin()));
         }
 
-        Self {
-            n,
-            twiddle,
-            scratch: vec![0.0; n2],
-        }
+        Self { n, twiddle, scratch: vec![0.0; n2] }
     }
 
     /// Perform IMDCT.
@@ -160,7 +156,8 @@ pub fn celt_synthesis(
 
     let (b_blocks, nb, shift) = if is_transient {
         (m, mode.short_mdct_size, mode.max_lm)
-    } else {
+    }
+    else {
         (1, mode.short_mdct_size << lm, mode.max_lm - lm)
     };
 
@@ -168,7 +165,9 @@ pub fn celt_synthesis(
 
     if out_channels == 2 && channels == 1 {
         // Mono to stereo upmix
-        denormalise_bands(mode, &x[0], &mut freq, old_band_e, start, eff_end, m, downsample, silence);
+        denormalise_bands(
+            mode, &x[0], &mut freq, old_band_e, start, eff_end, m, downsample, silence,
+        );
 
         // Copy to both channels
         for b in 0..b_blocks {
@@ -194,12 +193,25 @@ pub fn celt_synthesis(
                 b_blocks,
             );
         }
-    } else if out_channels == 1 && channels == 2 {
+    }
+    else if out_channels == 1 && channels == 2 {
         // Stereo to mono downmix
         let mut freq2 = vec![0i32; n];
 
-        denormalise_bands(mode, &x[0], &mut freq, old_band_e, start, eff_end, m, downsample, silence);
-        denormalise_bands(mode, &x[1], &mut freq2, &old_band_e[mode.nb_ebands..], start, eff_end, m, downsample, silence);
+        denormalise_bands(
+            mode, &x[0], &mut freq, old_band_e, start, eff_end, m, downsample, silence,
+        );
+        denormalise_bands(
+            mode,
+            &x[1],
+            &mut freq2,
+            &old_band_e[mode.nb_ebands..],
+            start,
+            eff_end,
+            m,
+            downsample,
+            silence,
+        );
 
         // Mix down
         for i in 0..n {
@@ -217,7 +229,8 @@ pub fn celt_synthesis(
                 b_blocks,
             );
         }
-    } else {
+    }
+    else {
         // Normal case: mono or stereo
         for c in 0..out_channels {
             let band_e_offset = if c < channels { c * mode.nb_ebands } else { 0 };
@@ -292,8 +305,8 @@ fn clt_mdct_backward_i32(
         let w_comp = window[overlap - 1 - i] as i32;
 
         // First half of overlap
-        out[out_offset + i] += mult16_16_q15(w, temp[n2 - 1 - i])
-            + mult16_16_q15(w_comp, temp[n2 + i]);
+        out[out_offset + i] +=
+            mult16_16_q15(w, temp[n2 - 1 - i]) + mult16_16_q15(w_comp, temp[n2 + i]);
     }
 
     // Middle section (no windowing)
@@ -306,8 +319,8 @@ fn clt_mdct_backward_i32(
         let w = window[overlap - 1 - i] as i32;
         let w_comp = window[i] as i32;
 
-        out[out_offset + n - overlap + i] = mult16_16_q15(w, temp[n - 1 - i])
-            + mult16_16_q15(w_comp, temp[i]);
+        out[out_offset + n - overlap + i] =
+            mult16_16_q15(w, temp[n - 1 - i]) + mult16_16_q15(w_comp, temp[i]);
     }
 }
 
@@ -358,7 +371,8 @@ pub fn deemphasis(
             let out_idx = i * channels + c;
             if accum {
                 out[out_idx] += sample_f32;
-            } else {
+            }
+            else {
                 out[out_idx] = sample_f32;
             }
         }
@@ -387,9 +401,9 @@ pub fn comb_filter(
 ) {
     // Comb filter taps for different tapsets
     static COMB_TAPS: [[i16; 3]; 3] = [
-        [20972, 16384, 8192],  // Tapset 0
-        [22016, 14336, 8704],  // Tapset 1
-        [21120, 15872, 7680],  // Tapset 2
+        [20972, 16384, 8192], // Tapset 0
+        [22016, 14336, 8704], // Tapset 1
+        [21120, 15872, 7680], // Tapset 2
     ];
 
     let period_old = period_old.max(COMBFILTER_MINPERIOD);
@@ -408,8 +422,14 @@ pub fn comb_filter(
         if g_old != 0 && inp_offset + i >= period_old + 2 {
             let base = inp_offset + i - period_old;
             y += mult16_16_q15(g_old, mult16_16_q15(taps_old[0] as i32, inp[base]));
-            y += mult16_16_q15(g_old, mult16_16_q15(taps_old[1] as i32, inp[base - 1] + inp[base + 1]));
-            y += mult16_16_q15(g_old, mult16_16_q15(taps_old[2] as i32, inp[base - 2] + inp[base + 2]));
+            y += mult16_16_q15(
+                g_old,
+                mult16_16_q15(taps_old[1] as i32, inp[base - 1] + inp[base + 1]),
+            );
+            y += mult16_16_q15(
+                g_old,
+                mult16_16_q15(taps_old[2] as i32, inp[base - 2] + inp[base + 2]),
+            );
         }
         let y_old = y;
 
@@ -418,15 +438,20 @@ pub fn comb_filter(
         if g_new != 0 && inp_offset + i >= period_new + 2 {
             let base = inp_offset + i - period_new;
             y += mult16_16_q15(g_new, mult16_16_q15(taps_new[0] as i32, inp[base]));
-            y += mult16_16_q15(g_new, mult16_16_q15(taps_new[1] as i32, inp[base - 1] + inp[base + 1]));
-            y += mult16_16_q15(g_new, mult16_16_q15(taps_new[2] as i32, inp[base - 2] + inp[base + 2]));
+            y += mult16_16_q15(
+                g_new,
+                mult16_16_q15(taps_new[1] as i32, inp[base - 1] + inp[base + 1]),
+            );
+            y += mult16_16_q15(
+                g_new,
+                mult16_16_q15(taps_new[2] as i32, inp[base - 2] + inp[base + 2]),
+            );
         }
         let y_new = y;
 
         // Crossfade
-        out[out_offset + i] = inp[inp_offset + i]
-            + mult16_16_q15(w_comp, y_old)
-            + mult16_16_q15(w, y_new);
+        out[out_offset + i] =
+            inp[inp_offset + i] + mult16_16_q15(w_comp, y_old) + mult16_16_q15(w, y_new);
     }
 
     // Main region (new filter only)
@@ -436,8 +461,14 @@ pub fn comb_filter(
         if g_new != 0 && inp_offset + i >= period_new + 2 {
             let base = inp_offset + i - period_new;
             y += mult16_16_q15(g_new, mult16_16_q15(taps_new[0] as i32, inp[base]));
-            y += mult16_16_q15(g_new, mult16_16_q15(taps_new[1] as i32, inp[base - 1] + inp[base + 1]));
-            y += mult16_16_q15(g_new, mult16_16_q15(taps_new[2] as i32, inp[base - 2] + inp[base + 2]));
+            y += mult16_16_q15(
+                g_new,
+                mult16_16_q15(taps_new[1] as i32, inp[base - 1] + inp[base + 1]),
+            );
+            y += mult16_16_q15(
+                g_new,
+                mult16_16_q15(taps_new[2] as i32, inp[base - 2] + inp[base + 2]),
+            );
         }
 
         out[out_offset + i] = y;
@@ -469,7 +500,8 @@ pub fn tf_decode(
     for i in start..end {
         let logp = if i == start {
             if is_transient { 2 } else { 4 }
-        } else {
+        }
+        else {
             if is_transient { 4 } else { 5 }
         };
 
@@ -492,10 +524,12 @@ pub fn tf_decode(
             != TF_SELECT_TABLE[lm][4 * is_trans + 2 + tf_changed_idx]
         {
             dec.dec_bit_logp(1) as usize
-        } else {
+        }
+        else {
             0
         }
-    } else {
+    }
+    else {
         0
     };
 

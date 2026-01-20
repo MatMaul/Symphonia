@@ -26,7 +26,10 @@ pub fn test_ogg_vorbis_file(filename: &str) -> Result<(), String> {
 
     let path = test_dir().join(filename);
     if !path.exists() {
-        return Err(format!("file not found: {}, please execute download_files.sh", path.display()));
+        return Err(format!(
+            "file not found: {}, please execute download_files.sh",
+            path.display()
+        ));
     }
 
     let config = TestConfig::default();
@@ -35,7 +38,8 @@ pub fn test_ogg_vorbis_file(filename: &str) -> Result<(), String> {
         Ok(stats) => {
             if stats.passed() {
                 Ok(())
-            } else {
+            }
+            else {
                 Err(format!(
                     "Test failed for {}: {} failed samples out of {}, max delta: {}, \
                      symphonia remaining: {}, ffmpeg remaining: {}",

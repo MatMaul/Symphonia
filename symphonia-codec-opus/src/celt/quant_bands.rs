@@ -48,11 +48,7 @@ pub fn unquant_coarse_energy(
     let prob_model = &E_PROB_MODEL[lm][if intra { 1 } else { 0 }];
     let mut prev = [0i32; 2];
 
-    let (coef, beta) = if intra {
-        (0, BETA_INTRA)
-    } else {
-        (PRED_COEF[lm], BETA_COEF[lm])
-    };
+    let (coef, beta) = if intra { (0, BETA_INTRA) } else { (PRED_COEF[lm], BETA_COEF[lm]) };
 
     let budget = dec.storage() as i32 * 8;
 
@@ -69,14 +65,17 @@ pub fn unquant_coarse_energy(
                     (prob_model[pi] as u32) << 7,
                     (prob_model[pi + 1] as i32) << 6,
                 );
-            } else if budget - tell >= 2 {
+            }
+            else if budget - tell >= 2 {
                 // Use small energy coding
                 let idx = dec.dec_icdf(SMALL_ENERGY_ICDF, 2);
                 qi = (idx >> 1) ^ -(idx & 1);
-            } else if budget - tell >= 1 {
+            }
+            else if budget - tell >= 1 {
                 // Single bit
                 qi = -dec.dec_bit_logp(1);
-            } else {
+            }
+            else {
                 // No bits left, assume -1
                 qi = -1;
             }
@@ -124,10 +123,7 @@ pub fn unquant_fine_energy(
 
         for c in 0..channels {
             let q2 = dec.dec_bits(fine_quant[i]);
-            let offset = shr32(
-                shl32(q2, DB_SHIFT) + half_db(),
-                fine_quant[i],
-            ) - half_db();
+            let offset = shr32(shl32(q2, DB_SHIFT) + half_db(), fine_quant[i]) - half_db();
 
             let idx = i + c * m.nb_ebands;
             old_ebands[idx] += offset;
@@ -199,11 +195,7 @@ fn mult16_16(a: i32, b: i32) -> i32 {
 /// Helper: Shift right with rounding.
 #[inline]
 fn shr32(a: i32, shift: i32) -> i32 {
-    if shift >= 0 {
-        a >> shift
-    } else {
-        a << -shift
-    }
+    if shift >= 0 { a >> shift } else { a << -shift }
 }
 
 #[cfg(test)]

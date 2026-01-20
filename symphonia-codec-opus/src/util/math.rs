@@ -24,12 +24,7 @@ pub fn ilog2(x: i32) -> i32 {
 /// Computes the integer log base 2, returning 0 for non-positive values.
 #[inline]
 pub fn zlog2(x: i32) -> i32 {
-    if x <= 0 {
-        0
-    }
-    else {
-        ilog2(x)
-    }
+    if x <= 0 { 0 } else { ilog2(x) }
 }
 
 /// Computes the base-2 integer logarithm of a 32-bit value.
@@ -63,11 +58,7 @@ pub fn celt_log2(x: i32) -> i32 {
     let frac = LOG2_C0
         + mult16_16_q15(
             n,
-            15746
-                + mult16_16_q15(
-                    n,
-                    -5217 + mult16_16_q15(n, 2545 + mult16_16_q15(n, -1401)),
-                ),
+            15746 + mult16_16_q15(n, -5217 + mult16_16_q15(n, 2545 + mult16_16_q15(n, -1401))),
         );
 
     shl(i - 13, 10) + shr(frac, 4)
@@ -78,11 +69,7 @@ pub fn celt_log2(x: i32) -> i32 {
 /// Returns the result in Q15 format.
 fn celt_exp2_frac(x: i32) -> i32 {
     let frac = shl(x, 4);
-    16383
-        + mult16_16_q15(
-            frac,
-            22804 + mult16_16_q15(frac, 14819 + mult16_16_q15(10204, frac)),
-        )
+    16383 + mult16_16_q15(frac, 22804 + mult16_16_q15(frac, 14819 + mult16_16_q15(10204, frac)))
 }
 
 /// Computes 2^x where x is in Q7 format (7 fractional bits).
@@ -104,12 +91,7 @@ pub fn celt_exp2(x: i32) -> i32 {
 /// Shifts right if shift > 0, left if shift < 0.
 #[inline]
 pub fn vshr32(a: i32, shift: i32) -> i32 {
-    if shift > 0 {
-        a >> shift
-    }
-    else {
-        a << (-shift)
-    }
+    if shift > 0 { a >> shift } else { a << (-shift) }
 }
 
 /// Arithmetic shift right.
@@ -172,11 +154,7 @@ pub fn max32(a: i32, b: i32) -> i32 {
 /// For x == 0, returns 0.
 #[inline]
 pub fn celt_ilog2(x: u32) -> u32 {
-    if x == 0 {
-        0
-    } else {
-        31 - x.leading_zeros()
-    }
+    if x == 0 { 0 } else { 31 - x.leading_zeros() }
 }
 
 /// Integer division with rounding towards zero.
@@ -192,10 +170,9 @@ pub fn celt_udiv(n: i32, d: i32) -> i32 {
 pub fn celt_rsqrt_norm(x: i32) -> i32 {
     // rsqrt lookup table for initial approximation
     static RSQRT_TABLE: [i16; 32] = [
-        32767, 31790, 30894, 30070, 29309, 28602, 27945, 27330,
-        26755, 26214, 25705, 25225, 24770, 24339, 23930, 23541,
-        23170, 22817, 22479, 22155, 21845, 21548, 21263, 20988,
-        20724, 20470, 20225, 19988, 19760, 19539, 19326, 19119,
+        32767, 31790, 30894, 30070, 29309, 28602, 27945, 27330, 26755, 26214, 25705, 25225, 24770,
+        24339, 23930, 23541, 23170, 22817, 22479, 22155, 21845, 21548, 21263, 20988, 20724, 20470,
+        20225, 19988, 19760, 19539, 19326, 19119,
     ];
 
     debug_assert!(x > 0, "celt_rsqrt_norm() requires positive input");

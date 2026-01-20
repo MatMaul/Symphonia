@@ -47,11 +47,7 @@ fn pshr32(a: i32, shift: i32) -> i32 {
 /// Helper: Variable shift right.
 #[inline]
 fn vshr32(x: i32, shift: i32) -> i32 {
-    if shift > 0 {
-        x >> shift
-    } else {
-        x << -shift
-    }
+    if shift > 0 { x >> shift } else { x << -shift }
 }
 
 /// Helper: Negate 16-bit value.
@@ -161,7 +157,8 @@ pub fn exp_rotation(x: &mut [i32], len: usize, dir: i32, stride: usize, k: usize
                 exp_rotation1(x_block, block_len, stride2, s, c);
             }
             exp_rotation1(x_block, block_len, 1, c, s);
-        } else {
+        }
+        else {
             // Forward rotation (encoding)
             exp_rotation1(x_block, block_len, 1, c, neg16(s));
             if stride2 != 0 {
@@ -316,7 +313,8 @@ pub fn stereo_itheta(x: &[i32], y: &[i32], stereo: bool, n: usize) -> i32 {
             emid += mult16_16_q15(m, m);
             eside += mult16_16_q15(s, s);
         }
-    } else {
+    }
+    else {
         // Compute L/R energies
         for i in 0..n {
             emid += mult16_16_q15(x[i], x[i]);
@@ -361,11 +359,7 @@ fn celt_atan2p(y: i32, x: i32) -> i32 {
 
     // Simple approximation using ratio
     // atan(y/x) ≈ y/x for small angles, with correction
-    let ratio = if y < x {
-        (y << 14) / x
-    } else {
-        16384 - ((x << 14) / y)
-    };
+    let ratio = if y < x { (y << 14) / x } else { 16384 - ((x << 14) / y) };
 
     ratio.clamp(0, 16384)
 }

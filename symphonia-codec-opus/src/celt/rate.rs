@@ -24,11 +24,7 @@ const ALLOC_STEPS: i32 = 6;
 /// it's exponential to allow for large pulse counts.
 #[inline]
 pub fn get_pulses(i: i32) -> i32 {
-    if i < 8 {
-        i
-    } else {
-        (8 + (i & 7)) << ((i >> 3) - 1)
-    }
+    if i < 8 { i } else { (8 + (i & 7)) << ((i >> 3) - 1) }
 }
 
 /// Convert bits to optimal number of pulses for a band.
@@ -49,18 +45,15 @@ pub fn bits2pulses(m: &CeltMode, band: usize, lm: i32, bits: i32) -> i32 {
         let mid = (lo + hi + 1) >> 1;
         if cache[cache_ptr + mid as usize] as i32 >= bits {
             hi = mid;
-        } else {
+        }
+        else {
             lo = mid;
         }
     }
 
     let low_val = if lo == 0 { -1 } else { cache[cache_ptr + lo as usize] as i32 };
 
-    if bits - low_val <= cache[cache_ptr + hi as usize] as i32 - bits {
-        lo
-    } else {
-        hi
-    }
+    if bits - low_val <= cache[cache_ptr + hi as usize] as i32 - bits { lo } else { hi }
 }
 
 /// Convert pulse count to bits required.
@@ -127,14 +120,16 @@ pub fn interp_bits2pulses(
             if tmp >= thresh[j] || done {
                 done = true;
                 psum += tmp.min(cap[j]);
-            } else if tmp >= alloc_floor {
+            }
+            else if tmp >= alloc_floor {
                 psum += alloc_floor;
             }
         }
 
         if psum > total {
             hi = mid;
-        } else {
+        }
+        else {
             lo = mid;
         }
     }
@@ -148,10 +143,12 @@ pub fn interp_bits2pulses(
         if tmp < thresh[j] && !done {
             if tmp >= alloc_floor {
                 tmp = alloc_floor;
-            } else {
+            }
+            else {
                 tmp = 0;
             }
-        } else {
+        }
+        else {
             done = true;
         }
         tmp = tmp.min(cap[j]);
@@ -186,7 +183,8 @@ pub fn interp_bits2pulses(
                 if dec.dec_bit_logp(1) != 0 {
                     break;
                 }
-            } else if dec.dec_bit_logp(1) != 0 {
+            }
+            else if dec.dec_bit_logp(1) != 0 {
                 break;
             }
             psum += 1 << BITRES;
@@ -201,7 +199,8 @@ pub fn interp_bits2pulses(
         if band_bits >= alloc_floor {
             psum += alloc_floor;
             bits[j] = alloc_floor;
-        } else {
+        }
+        else {
             bits[j] = 0;
         }
 
@@ -213,7 +212,8 @@ pub fn interp_bits2pulses(
     // Decode intensity stereo position
     if intensity_rsv > 0 {
         *intensity = start as i32 + dec.dec_uint((coded_bands + 1 - start) as u32) as i32;
-    } else {
+    }
+    else {
         *intensity = 0;
     }
 
@@ -224,7 +224,8 @@ pub fn interp_bits2pulses(
     }
     if dual_stereo_rsv > 0 {
         *dual_stereo = dec.dec_bit_logp(1);
-    } else {
+    }
+    else {
         *dual_stereo = 0;
     }
 
@@ -270,7 +271,8 @@ pub fn interp_bits2pulses(
 
             if bits[j] + offset < den * 2 << BITRES {
                 offset += nc_log_n >> 2;
-            } else if bits[j] + offset < den * 3 << BITRES {
+            }
+            else if bits[j] + offset < den * 3 << BITRES {
                 offset += nc_log_n >> 3;
             }
 
@@ -284,12 +286,14 @@ pub fn interp_bits2pulses(
 
             if ebits[j] * (den << BITRES) >= bits[j] + offset {
                 fine_priority[j] = 1;
-            } else {
+            }
+            else {
                 fine_priority[j] = 0;
             }
 
             bits[j] -= c * ebits[j] << BITRES;
-        } else {
+        }
+        else {
             let excess = (bit - (c << BITRES)).max(0);
             bits[j] = bit - excess;
             ebits[j] = 0;
@@ -297,11 +301,7 @@ pub fn interp_bits2pulses(
         }
 
         // Handle excess bits
-        let mut excess = if n > 1 {
-            (bit - cap[j]).max(0)
-        } else {
-            (bit - (c << BITRES)).max(0)
-        };
+        let mut excess = if n > 1 { (bit - cap[j]).max(0) } else { (bit - (c << BITRES)).max(0) };
 
         if excess > 0 {
             let extra_fine = (excess >> (stereo + BITRES)).min(MAX_FINE_BITS - ebits[j]);
@@ -309,7 +309,8 @@ pub fn interp_bits2pulses(
             let extra_bits = extra_fine * c << BITRES;
             if extra_bits >= excess - *balance {
                 fine_priority[j] = 1;
-            } else {
+            }
+            else {
                 fine_priority[j] = 0;
             }
             excess -= extra_bits;
@@ -382,7 +383,8 @@ pub fn compute_allocation(
         intensity_rsv = LOG2_FRAC_TABLE[end - start] as i32;
         if intensity_rsv > total {
             intensity_rsv = 0;
-        } else {
+        }
+        else {
             total -= intensity_rsv;
             dual_stereo_rsv = if total >= 1 << BITRES { 1 << BITRES } else { 0 };
             total -= dual_stereo_rsv;
@@ -396,9 +398,8 @@ pub fn compute_allocation(
     let mut trim_offset = [0i32; 22];
 
     for j in start..end {
-        thresh[j] = (c << BITRES).max(
-            (3 * (m.ebands[j + 1] - m.ebands[j]) as i32) << lm << BITRES >> 4,
-        );
+        thresh[j] =
+            (c << BITRES).max((3 * (m.ebands[j + 1] - m.ebands[j]) as i32) << lm << BITRES >> 4);
         trim_offset[j] = c
             * (m.ebands[j + 1] - m.ebands[j]) as i32
             * (alloc_trim - 5 - lm as i32)
@@ -430,14 +431,16 @@ pub fn compute_allocation(
             if bitsj >= thresh[j] || done {
                 done = true;
                 psum += bitsj.min(cap[j]);
-            } else if bitsj >= c << BITRES {
+            }
+            else if bitsj >= c << BITRES {
                 psum += c << BITRES;
             }
         }
 
         if psum > total {
             hi = mid - 1;
-        } else {
+        }
+        else {
             lo = mid + 1;
         }
     }
@@ -451,7 +454,8 @@ pub fn compute_allocation(
         let mut bits1j = (c * n * m.alloc_vectors[lo as usize * len + j] as i32) << lm >> 2;
         let mut bits2j = if hi < m.nb_alloc_vectors as i32 {
             (c * n * m.alloc_vectors[hi as usize * len + j] as i32) << lm >> 2
-        } else {
+        }
+        else {
             cap[j]
         };
 

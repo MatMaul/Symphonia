@@ -9,8 +9,8 @@
 
 use alloc::boxed::Box;
 use alloc::string::String;
-use alloc::vec::Vec;
 use alloc::vec;
+use alloc::vec::Vec;
 
 use hashbrown::HashMap;
 

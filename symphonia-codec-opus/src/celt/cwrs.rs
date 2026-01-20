@@ -34,11 +34,7 @@ pub fn celt_pvq_v(n: usize, k: usize) -> u64 {
 /// Helper to cap a value to u32, treating negative as 0.
 #[inline]
 fn cap_to_u32(val: i64) -> u64 {
-    if val < 0 {
-        0
-    } else {
-        val as u64
-    }
+    if val < 0 { 0 } else { val as u64 }
 }
 
 /// Decode a PVQ codeword using the CWRS algorithm.
@@ -91,7 +87,8 @@ pub fn cwrsi(n: usize, mut k: usize, mut i: u64, y: &mut [i32]) -> i32 {
                         break;
                     }
                 }
-            } else {
+            }
+            else {
                 let mut p_search = CELT_PVQ_U_DATA[row + k] as u64;
                 while p_search > i {
                     k -= 1;
@@ -104,7 +101,8 @@ pub fn cwrsi(n: usize, mut k: usize, mut i: u64, y: &mut [i32]) -> i32 {
             y[y_ptr] = val;
             y_ptr += 1;
             yy += val * val;
-        } else {
+        }
+        else {
             // k < n case
             let p0 = CELT_PVQ_U_DATA[CELT_PVQ_U_ROW[k] + n_remaining] as u64;
             let q = CELT_PVQ_U_DATA[CELT_PVQ_U_ROW[k + 1] + n_remaining] as u64;
@@ -114,7 +112,8 @@ pub fn cwrsi(n: usize, mut k: usize, mut i: u64, y: &mut [i32]) -> i32 {
                 i -= p0;
                 y[y_ptr] = 0;
                 y_ptr += 1;
-            } else {
+            }
+            else {
                 // Non-zero coefficient
                 s = if i >= q { -1 } else { 0 };
                 i -= cap_to_u32((q as i64) & (s as i64));

@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use symphonia_test::{compare_decode_from_wav, TestConfig};
+use symphonia_test::{TestConfig, compare_decode_from_wav};
 
 /// Get the path to the Opus test files directory.
 fn test_dir() -> PathBuf {
@@ -41,7 +41,8 @@ fn encode_opus(wav_path: &Path, opus_path: &Path, args: &[&str]) -> std::io::Res
 
     if status.success() {
         Ok(())
-    } else {
+    }
+    else {
         Err(std::io::Error::new(
             std::io::ErrorKind::Other,
             format!("opusenc failed with exit code: {:?}", status.code()),
@@ -68,15 +69,15 @@ pub fn test_opus_celt_file(filename: &str) -> Result<(), String> {
 
     let config = TestConfig::default();
 
-    let encoder = |wav: &Path, opus: &Path| {
-        encode_opus(wav, opus, &["--music", "--vbr", "--bitrate", "128"])
-    };
+    let encoder =
+        |wav: &Path, opus: &Path| encode_opus(wav, opus, &["--music", "--vbr", "--bitrate", "128"]);
 
     match compare_decode_from_wav(&wav_path, "opus", encoder, &config) {
         Ok(stats) => {
             if stats.passed() {
                 Ok(())
-            } else {
+            }
+            else {
                 Err(format!(
                     "Test failed for {}: {} failed samples out of {}, max delta: {}, \
                      symphonia remaining: {}, ffmpeg remaining: {}",

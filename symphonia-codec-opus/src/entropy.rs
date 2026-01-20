@@ -117,8 +117,7 @@ impl<'a> RangeDecoder<'a> {
             sym = ((sym << EC_SYM_BITS) | (self.rem as u32)) >> (EC_SYM_BITS - EC_CODE_EXTRA);
 
             // And subtract them from val, capped to be less than EC_CODE_TOP
-            self.val = (((self.val as u64) << EC_SYM_BITS)
-                + ((EC_SYM_MAX & !sym) as u64)) as u32
+            self.val = (((self.val as u64) << EC_SYM_BITS) + ((EC_SYM_MAX & !sym) as u64)) as u32
                 & (EC_CODE_TOP - 1);
         }
     }
@@ -249,7 +248,6 @@ impl<'a> RangeDecoder<'a> {
         ft - s.min(ft) - 1
     }
 
-
     /// Get the number of bits read so far.
     pub fn tell(&self) -> i32 {
         self.nbits_total - ec_ilog(self.rng) as i32
@@ -298,7 +296,8 @@ impl<'a> RangeDecoder<'a> {
         self.val -= s;
         if fl > 0 {
             self.rng = self.rng / ft * (fh - fl);
-        } else {
+        }
+        else {
             self.rng -= s;
         }
         self.dec_normalize();
@@ -325,7 +324,8 @@ impl<'a> RangeDecoder<'a> {
             self.rng = s;
             self.dec_normalize();
             1
-        } else {
+        }
+        else {
             self.val = d - s;
             self.rng = r - s;
             self.dec_normalize();
@@ -372,12 +372,7 @@ impl<'a> RangeDecoder<'a> {
 /// Compute the integer log base 2 (number of bits required).
 #[inline]
 fn ec_ilog(x: u32) -> u32 {
-    if x == 0 {
-        1
-    }
-    else {
-        32 - x.leading_zeros()
-    }
+    if x == 0 { 1 } else { 32 - x.leading_zeros() }
 }
 
 #[cfg(test)]

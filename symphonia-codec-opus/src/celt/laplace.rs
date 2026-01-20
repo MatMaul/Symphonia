@@ -68,7 +68,8 @@ pub fn ec_laplace_decode(dec: &mut RangeDecoder<'_>, fs: u32, decay: i32) -> i32
         // Determine sign
         if fm < fl + fs {
             val = -val;
-        } else {
+        }
+        else {
             fl = cap_to_u32(fl as i32 + fs as i32);
         }
     }

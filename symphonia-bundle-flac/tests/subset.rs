@@ -131,7 +131,8 @@ fn flac_23_8_bit_per_sample() {
 
 #[test]
 fn flac_24_variable_blocksize_flake_264() {
-    test_flac_file("subset/24 - variable blocksize file created with flake revision 264.flac").unwrap();
+    test_flac_file("subset/24 - variable blocksize file created with flake revision 264.flac")
+        .unwrap();
 }
 
 #[test]
@@ -141,12 +142,14 @@ fn flac_25_variable_blocksize_flake_264_smaller() {
 
 #[test]
 fn flac_26_variable_blocksize_cuetools() {
-    test_flac_file("subset/26 - variable blocksize file created with CUETools.Flake 2.1.6.flac").unwrap();
+    test_flac_file("subset/26 - variable blocksize file created with CUETools.Flake 2.1.6.flac")
+        .unwrap();
 }
 
 #[test]
 fn flac_27_variable_blocksize_flake_011() {
-    test_flac_file("subset/27 - old format variable blocksize file created with Flake 0.11.flac").unwrap();
+    test_flac_file("subset/27 - old format variable blocksize file created with Flake 0.11.flac")
+        .unwrap();
 }
 
 // =============================================================================
@@ -170,12 +173,16 @@ fn flac_30_high_resolution_blocksize_13456() {
 
 #[test]
 fn flac_31_high_resolution_32nd_order() {
-    test_flac_file("subset/31 - high resolution audio, using only 32nd order predictors.flac").unwrap();
+    test_flac_file("subset/31 - high resolution audio, using only 32nd order predictors.flac")
+        .unwrap();
 }
 
 #[test]
 fn flac_32_high_resolution_escaped_partitions() {
-    test_flac_file("subset/32 - high resolution audio, partition order 8 containing escaped partitions.flac").unwrap();
+    test_flac_file(
+        "subset/32 - high resolution audio, partition order 8 containing escaped partitions.flac",
+    )
+    .unwrap();
 }
 
 #[test]
@@ -241,7 +248,10 @@ fn flac_43_8_channels() {
 
 #[test]
 fn flac_44_8_channel_192khz_24bit_32nd_order() {
-    test_flac_file("subset/44 - 8-channel surround, 192kHz, 24 bit, using only 32nd order predictors.flac").unwrap();
+    test_flac_file(
+        "subset/44 - 8-channel surround, 192kHz, 24 bit, using only 32nd order predictors.flac",
+    )
+    .unwrap();
 }
 
 // =============================================================================

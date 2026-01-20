@@ -20,11 +20,13 @@ use std::{vec, vec::Vec};
 
 use crate::celt::bands::{anti_collapse, celt_lcg_rand, quant_all_bands};
 use crate::celt::constants::{
-    BITRES, COMBFILTER_MINPERIOD, DB_SHIFT, DECODE_BUFFER_SIZE, LPC_ORDER, MAX_FRAME_SIZE,
-    Q15ONE, SPREAD_NORMAL,
+    BITRES, COMBFILTER_MINPERIOD, DB_SHIFT, DECODE_BUFFER_SIZE, LPC_ORDER, MAX_FRAME_SIZE, Q15ONE,
+    SPREAD_NORMAL,
 };
 use crate::celt::mode::CeltMode;
-use crate::celt::quant_bands::{unquant_coarse_energy, unquant_energy_finalise, unquant_fine_energy};
+use crate::celt::quant_bands::{
+    unquant_coarse_energy, unquant_energy_finalise, unquant_fine_energy,
+};
 use crate::celt::rate::{compute_allocation, init_caps};
 use crate::celt::synthesis::{celt_synthesis, comb_filter, deemphasis, tf_decode};
 use crate::celt::tables::{SPREAD_ICDF, TAPSET_ICDF, TRIM_ICDF};
@@ -253,9 +255,11 @@ impl CeltDecoder {
         // Decode silence flag
         let silence = if tell >= total_bits {
             true
-        } else if tell == 1 {
+        }
+        else if tell == 1 {
             dec.dec_bit_logp(15) != 0
-        } else {
+        }
+        else {
             false
         };
 
@@ -270,21 +274,14 @@ impl CeltDecoder {
         tell = dec.tell();
 
         // Decode transient flag
-        let is_transient = if lm > 0 && tell + 3 <= total_bits {
-            dec.dec_bit_logp(3) != 0
-        } else {
-            false
-        };
+        let is_transient =
+            if lm > 0 && tell + 3 <= total_bits { dec.dec_bit_logp(3) != 0 } else { false };
         tell = dec.tell();
 
         let short_blocks = if is_transient { m } else { 0 };
 
         // Decode intra energy flag
-        let intra_ener = if tell + 3 <= total_bits {
-            dec.dec_bit_logp(3) != 0
-        } else {
-            false
-        };
+        let intra_ener = if tell + 3 <= total_bits { dec.dec_bit_logp(3) != 0 } else { false };
 
         // Decode coarse energy
         unquant_coarse_energy(
@@ -305,11 +302,8 @@ impl CeltDecoder {
         tell = dec.tell();
 
         // Decode spread decision
-        let spread_decision = if tell + 4 <= total_bits {
-            dec.dec_icdf(SPREAD_ICDF, 5)
-        } else {
-            SPREAD_NORMAL
-        };
+        let spread_decision =
+            if tell + 4 <= total_bits { dec.dec_icdf(SPREAD_ICDF, 5) } else { SPREAD_NORMAL };
 
         // Initialize caps
         let mut cap = vec![0i32; nb_ebands];
@@ -322,9 +316,7 @@ impl CeltDecoder {
         tell = dec.tell_frac();
 
         for i in self.start..self.end {
-            let width = c as i32
-                * ((self.mode.ebands[i + 1] - self.mode.ebands[i]) as i32)
-                << lm;
+            let width = c as i32 * ((self.mode.ebands[i + 1] - self.mode.ebands[i]) as i32) << lm;
             let quanta = (width << BITRES).min((6 << BITRES).max(width));
 
             let mut boost = 0;
@@ -344,17 +336,15 @@ impl CeltDecoder {
         }
 
         // Decode trim
-        let alloc_trim = if tell + (6 << BITRES) <= total_bits_scaled {
-            dec.dec_icdf(TRIM_ICDF, 7)
-        } else {
-            5
-        };
+        let alloc_trim =
+            if tell + (6 << BITRES) <= total_bits_scaled { dec.dec_icdf(TRIM_ICDF, 7) } else { 5 };
 
         // Calculate remaining bits and anti-collapse reserve
         let mut bits = (length as i32 * 8 << BITRES) - dec.tell_frac() - 1;
         let anti_collapse_rsv = if is_transient && lm >= 2 && bits >= ((lm as i32 + 2) << BITRES) {
             1 << BITRES
-        } else {
+        }
+        else {
             0
         };
         bits -= anti_collapse_rsv;
@@ -430,11 +420,7 @@ impl CeltDecoder {
         }
 
         // Decode anti-collapse flag
-        let anti_collapse_on = if anti_collapse_rsv > 0 {
-            dec.dec_bits(1) != 0
-        } else {
-            false
-        };
+        let anti_collapse_on = if anti_collapse_rsv > 0 { dec.dec_bits(1) != 0 } else { false };
 
         // Decode final fine energy bits
         unquant_energy_finalise(
@@ -507,7 +493,14 @@ impl CeltDecoder {
         );
 
         // Update state
-        self.update_state(c, is_transient, postfilter_pitch, postfilter_gain, postfilter_tapset, lm);
+        self.update_state(
+            c,
+            is_transient,
+            postfilter_pitch,
+            postfilter_gain,
+            postfilter_tapset,
+            lm,
+        );
 
         // De-emphasis and output
         self.apply_deemphasis(&out_syn, &out_syn_offsets, pcm, n)?;
@@ -684,7 +677,8 @@ impl CeltDecoder {
                 self.background_log_e[i] =
                     (self.background_log_e[i] + max_bg_increase).min(self.old_ebands[i]);
             }
-        } else {
+        }
+        else {
             for i in 0..2 * nb_ebands {
                 self.old_log_e[i] = self.old_log_e[i].min(self.old_ebands[i]);
             }
