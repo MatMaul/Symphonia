@@ -119,11 +119,20 @@ impl OpusDecoder {
             _ => unreachable!(),
         };
 
+        // Frame duration depends on mode (RFC 6716 Section 3.1):
+        // - SILK/Hybrid modes (configs 0-15): 10ms, 20ms, 40ms, 60ms
+        // - CELT-only modes (configs 16-31): 2.5ms, 5ms, 10ms, 20ms
         let frame_duration = match config {
-            0 | 4 | 8 | 12 | 14 | 16 | 20 | 24 | 28 => FrameDuration::Ms10,
-            1 | 5 | 9 | 13 | 15 | 17 | 21 | 25 | 29 => FrameDuration::Ms20,
-            2 | 6 | 10 | 18 | 22 | 26 | 30 => FrameDuration::Ms40,
-            3 | 7 | 11 | 19 | 23 | 27 | 31 => FrameDuration::Ms60,
+            // SILK and Hybrid modes
+            0 | 4 | 8 | 12 | 14 => FrameDuration::Ms10,
+            1 | 5 | 9 | 13 | 15 => FrameDuration::Ms20,
+            2 | 6 | 10 => FrameDuration::Ms40,
+            3 | 7 | 11 => FrameDuration::Ms60,
+            // CELT-only modes
+            16 | 20 | 24 | 28 => FrameDuration::Ms2_5,
+            17 | 21 | 25 | 29 => FrameDuration::Ms5,
+            18 | 22 | 26 | 30 => FrameDuration::Ms10,
+            19 | 23 | 27 | 31 => FrameDuration::Ms20,
             _ => unreachable!(),
         };
 
