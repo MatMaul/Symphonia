@@ -432,6 +432,89 @@ pub fn collect_test_files<P: AsRef<Path>>(dir: P, extension: &str) -> std::io::R
     Ok(files)
 }
 
+/// Encode a WAV file to a target format using the provided encoder function,
+/// then compare Symphonia's decoding output against FFmpeg's.
+///
+/// The encoder function receives the WAV file path and a destination path for the
+/// encoded file. It should return `Ok(())` on success.
+///
+/// # Arguments
+///
+/// * `wav_path` - Path to the input WAV file
+/// * `encoded_extension` - File extension for the encoded file (e.g., "opus", "mp3")
+/// * `encoder` - Function that encodes the WAV file to the target format
+/// * `config` - Test configuration
+///
+/// Returns `TestStats` containing detailed comparison statistics.
+pub fn compare_decode_from_wav<P, F>(
+    wav_path: P,
+    encoded_extension: &str,
+    encoder: F,
+    config: &TestConfig,
+) -> TestResult<TestStats>
+where
+    P: AsRef<Path>,
+    F: FnOnce(&Path, &Path) -> std::io::Result<()>,
+{
+    let wav_path = wav_path.as_ref();
+
+    // Create a temporary file for the encoded output
+    let encoded_path = std::env::temp_dir().join(format!(
+        "symphonia_test_{}.{}",
+        std::process::id(),
+        encoded_extension
+    ));
+
+    // Encode the WAV file
+    encoder(wav_path, &encoded_path).map_err(|e| {
+        TestError::FfmpegSpawnFailed(format!("Encoder failed: {}", e))
+    })?;
+
+    // Run the comparison test on the encoded file
+    let result = compare_decode(&encoded_path, config);
+
+    // Clean up the temporary file
+    let _ = std::fs::remove_file(&encoded_path);
+
+    result
+}
+
+/// Test a WAV file by encoding it and comparing decode results.
+///
+/// This is a convenience wrapper around `compare_decode_from_wav` that validates
+/// the results and returns an error if the test fails.
+pub fn test_decode_from_wav<P, F>(
+    wav_path: P,
+    encoded_extension: &str,
+    encoder: F,
+    config: &TestConfig,
+) -> TestResult<TestStats>
+where
+    P: AsRef<Path>,
+    F: FnOnce(&Path, &Path) -> std::io::Result<()>,
+{
+    let stats = compare_decode_from_wav(wav_path, encoded_extension, encoder, config)?;
+
+    if stats.failed_samples > 0 {
+        return Err(TestError::SampleMismatch {
+            packet: 0,
+            sample: 0,
+            symphonia: 0.0,
+            ffmpeg: 0.0,
+            delta: stats.max_delta,
+        });
+    }
+
+    if stats.symphonia_remaining != 0 || stats.ffmpeg_remaining != 0 {
+        return Err(TestError::RemainingSamplesMismatch {
+            symphonia: stats.symphonia_remaining,
+            ffmpeg: stats.ffmpeg_remaining,
+        });
+    }
+
+    Ok(stats)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

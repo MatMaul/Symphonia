@@ -14,5 +14,13 @@ rust-version.workspace = true
 version.workspace = true
 
 [dependencies]
-log = "0.4"
-symphonia-core = { version = "0.6.0", path = "../symphonia-core" }
+log = { version = "0.4", default-features = false }
+num-traits = { version = "0.2", default-features = false, features = ["libm"] }
+symphonia-core = { version = "0.6.0", path = "../symphonia-core", default-features = false }
+
+[features]
+default = ["std"]
+std = ["symphonia-core/std"]
+
+[dev-dependencies]
+symphonia-test = { version = "0.6.0", path = "../symphonia-test" }
