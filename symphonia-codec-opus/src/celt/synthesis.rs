@@ -20,6 +20,9 @@ use alloc::{vec, vec::Vec};
 #[cfg(feature = "std")]
 use std::{vec, vec::Vec};
 
+#[cfg(not(feature = "std"))]
+use num_traits::Float;
+
 use crate::celt::bands::denormalise_bands;
 use crate::celt::constants::{COMBFILTER_MINPERIOD, DECODE_BUFFER_SIZE, Q15ONE, SIG_SHIFT};
 use crate::celt::mode::CeltMode;

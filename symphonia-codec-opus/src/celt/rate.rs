@@ -337,7 +337,8 @@ pub fn init_caps(m: &CeltMode, cap: &mut [i32], lm: usize, channels: usize) {
     let c = channels as i32;
     for i in 0..m.nb_ebands {
         let n = ((m.ebands[i + 1] - m.ebands[i]) as i32) << lm;
-        cap[i] = ((m.cache.caps[m.nb_ebands * (2 * lm + c - 1) + i] as i32) + 64) * c * n >> 2;
+        let cache_idx = m.nb_ebands * (2 * lm + channels - 1) + i;
+        cap[i] = ((m.cache.caps[cache_idx] as i32) + 64) * c * n >> 2;
     }
 }
 
@@ -400,9 +401,9 @@ pub fn compute_allocation(
         );
         trim_offset[j] = c
             * (m.ebands[j + 1] - m.ebands[j]) as i32
-            * (alloc_trim - 5 - lm)
+            * (alloc_trim - 5 - lm as i32)
             * (end - j - 1) as i32
-            * (1 << (lm + BITRES))
+            * (1 << (lm + BITRES as usize))
             >> 6;
         if (m.ebands[j + 1] - m.ebands[j]) << lm == 1 {
             trim_offset[j] -= c << BITRES;

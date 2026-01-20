@@ -68,7 +68,7 @@ impl OpusDecoder {
         }
 
         // Get channel count from parameters.
-        let channels = params.channels.map(|c| c.count()).unwrap_or(2);
+        let channels = params.channels.as_ref().map(|c| c.count()).unwrap_or(2);
 
         if channels < 1 || channels > 2 {
             return unsupported_error("opus: only mono and stereo are supported");
@@ -87,7 +87,7 @@ impl OpusDecoder {
             .map_err(|e| symphonia_core::errors::Error::DecodeError(e))?;
 
         // Create output buffer.
-        let spec = AudioSpec::new(sample_rate, params.channels.unwrap_or_default());
+        let spec = AudioSpec::new(sample_rate, params.channels.clone().unwrap_or_default());
         let buf = AudioBuffer::new(spec, MAX_FRAME_SIZE);
 
         Ok(Self {

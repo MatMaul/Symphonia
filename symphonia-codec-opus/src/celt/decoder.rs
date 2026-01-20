@@ -403,27 +403,31 @@ impl CeltDecoder {
         let mut x = vec![vec![0i32; n]; c];
         let mut collapse_masks = vec![0i16; c * nb_ebands];
 
-        // Decode bands
-        quant_all_bands(
-            &self.mode,
-            self.start,
-            self.end,
-            &mut x[0],
-            if c == 2 { Some(&mut x[1]) } else { None },
-            &mut collapse_masks,
-            &pulses,
-            short_blocks != 0,
-            spread_decision,
-            dual_stereo,
-            intensity,
-            &tf_res,
-            total_bits_scaled - anti_collapse_rsv,
-            balance,
-            &mut dec,
-            lm,
-            coded_bands,
-            &mut self.rng,
-        );
+        // Decode bands - need to split x to satisfy borrow checker
+        {
+            let (x0, rest) = x.split_at_mut(1);
+            let y = if c == 2 { Some(rest[0].as_mut_slice()) } else { None };
+            quant_all_bands(
+                &self.mode,
+                self.start,
+                self.end,
+                &mut x0[0],
+                y,
+                &mut collapse_masks,
+                &pulses,
+                short_blocks != 0,
+                spread_decision,
+                dual_stereo,
+                intensity,
+                &tf_res,
+                total_bits_scaled - anti_collapse_rsv,
+                balance,
+                &mut dec,
+                lm,
+                coded_bands,
+                &mut self.rng,
+            );
+        }
 
         // Decode anti-collapse flag
         let anti_collapse_on = if anti_collapse_rsv > 0 {
@@ -487,6 +491,10 @@ impl CeltDecoder {
             silence,
         );
 
+        // Capture dec state before methods that borrow self mutably
+        let dec_tell = dec.tell();
+        let dec_has_error = dec.has_error();
+
         // Apply post-filter
         self.apply_postfilter(
             &mut out_syn,
@@ -506,11 +514,11 @@ impl CeltDecoder {
 
         self.loss_count = 0;
 
-        if dec.tell() > length as i32 * 8 {
+        if dec_tell > length as i32 * 8 {
             return Err("decoder overread");
         }
 
-        if dec.has_error() {
+        if dec_has_error {
             self.error = true;
         }
 
@@ -594,10 +602,13 @@ impl CeltDecoder {
             self.postfilter_period = self.postfilter_period.max(COMBFILTER_MINPERIOD);
             self.postfilter_period_old = self.postfilter_period_old.max(COMBFILTER_MINPERIOD);
 
+            // Clone before mutable borrow to satisfy borrow checker
+            // TODO check if we can avoid clone
+            let src = out_syn[c].clone();
             comb_filter(
                 &mut out_syn[c],
                 out_syn_offsets[c],
-                &out_syn[c].clone(),
+                &src,
                 out_syn_offsets[c],
                 self.postfilter_period_old,
                 self.postfilter_period,
@@ -611,10 +622,11 @@ impl CeltDecoder {
             );
 
             if lm != 0 {
+                let src = out_syn[c].clone();
                 comb_filter(
                     &mut out_syn[c],
                     out_syn_offsets[c] + self.mode.short_mdct_size,
-                    &out_syn[c].clone(),
+                    &src,
                     out_syn_offsets[c] + self.mode.short_mdct_size,
                     self.postfilter_period,
                     postfilter_pitch,
@@ -727,10 +739,13 @@ impl CeltDecoder {
     ) -> Result<(), &'static str> {
         // Apply post-filter (with old parameters)
         for c in 0..self.channels {
+            // Clone before mutable borrow to satisfy borrow checker
+            // TODO check if we can avoir clone
+            let src = out_syn[c].clone();
             comb_filter(
                 &mut out_syn[c],
                 out_syn_offsets[c],
-                &out_syn[c].clone(),
+                &src,
                 out_syn_offsets[c],
                 self.postfilter_period_old,
                 self.postfilter_period,

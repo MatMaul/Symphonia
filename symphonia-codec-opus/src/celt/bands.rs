@@ -448,6 +448,7 @@ fn quant_partition(
                 for val in x.iter_mut().take(n) {
                     *val = 0;
                 }
+                0
             } else if let Some(lb) = lowband {
                 // Folded spectrum with small noise
                 for j in 0..n {
@@ -575,8 +576,8 @@ pub fn quant_band(
 }
 
 /// Decode all bands in a frame.
-pub fn quant_all_bands(
-    mode: &CeltMode,
+pub fn quant_all_bands<'a>(
+    mode: &'a CeltMode,
     start: usize,
     end: usize,
     x: &mut [i32],
@@ -590,7 +591,7 @@ pub fn quant_all_bands(
     tf_res: &[i32],
     total_bits: i32,
     mut balance: i32,
-    dec: &mut RangeDecoder<'_>,
+    dec: &mut RangeDecoder<'a>,
     lm: usize,
     coded_bands: usize,
     seed: &mut u32,
@@ -670,15 +671,16 @@ pub fn quant_all_bands(
             seed: *seed,
         };
 
-        // Get lowband for folding
-        let lowband = if effective_lowband > 0 {
-            Some(&norm[..effective_lowband + n])
+        // Get lowband for folding - clone to avoid borrow conflicts
+        let lowband_data: Option<Vec<i32>> = if effective_lowband > 0 {
+            Some(norm[effective_lowband..effective_lowband + n].to_vec())
         } else {
             None
         };
 
         // Decode the band
         let x_slice = &mut x[x_start..x_start + n];
+        let norm_out_offset = m * mode.ebands[i] as usize - norm_offset;
 
         if channels == 1 || !dual_stereo {
             // Mono or joint stereo
@@ -688,9 +690,9 @@ pub fn quant_all_bands(
                 n,
                 b,
                 b_blocks,
-                lowband.map(|lb| &lb[effective_lowband..]),
+                lowband_data.as_deref(),
                 lm as i32,
-                if !last { Some(&mut norm[m * mode.ebands[i] as usize - norm_offset..]) } else { None },
+                if !last { Some(&mut norm[norm_out_offset..]) } else { None },
                 Q15ONE,
                 None,
                 x_cm | y_cm,
@@ -704,15 +706,15 @@ pub fn quant_all_bands(
                 n,
                 b / 2,
                 b_blocks,
-                lowband.map(|lb| &lb[effective_lowband..]),
+                lowband_data.as_deref(),
                 lm as i32,
-                if !last { Some(&mut norm[m * mode.ebands[i] as usize - norm_offset..]) } else { None },
+                if !last { Some(&mut norm[norm_out_offset..]) } else { None },
                 Q15ONE,
                 None,
                 x_cm,
             );
 
-            if let Some(y_data) = y.as_deref() {
+            if let Some(_y_data) = y.as_deref() {
                 // Would need mutable y here for real stereo
             }
         }

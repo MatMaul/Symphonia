@@ -10,6 +10,11 @@
 //! This module implements the pyramid vector quantization (PVQ) decoding
 //! and spreading operations used in CELT.
 
+#[cfg(not(feature = "std"))]
+use alloc::{vec, vec::Vec};
+#[cfg(feature = "std")]
+use std::{vec, vec::Vec};
+
 use crate::celt::cwrs::decode_pulses;
 use crate::celt::tables::{SPREAD_AGGRESSIVE, SPREAD_LIGHT, SPREAD_NONE, SPREAD_NORMAL};
 use crate::entropy::RangeDecoder;
