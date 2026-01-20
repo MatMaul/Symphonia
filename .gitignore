@@ -26,6 +26,7 @@ testvec/*/**/*.wav
 testvec/*/**/*.mov
 
 symphonia-codec-vorbis/tests/files
+symphonia-codec-opus/tests/files
 
 # Benchmarking Files
 benchtest/*.aac
@@ -55,3 +56,5 @@ ehthumbs_vista.db
 *.stackdump
 [Dd]esktop.ini
 *.lnk
+
+symphonia-codec-opus/concentus
