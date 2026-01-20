@@ -9,6 +9,7 @@
 //!
 //! Defines the mode-dependent parameters for CELT decoding.
 
+use crate::celt::constants::{MAX_LM, OVERLAP, SHORT_MDCT_SIZE};
 use crate::celt::tables;
 
 /// Number of bands in CELT.
@@ -54,6 +55,12 @@ impl PulseCache {
 /// for encoding and decoding CELT frames.
 #[derive(Clone)]
 pub struct CeltMode {
+    /// Sampling rate in Hz.
+    pub fs: i32,
+
+    /// Overlap size in samples.
+    pub overlap: usize,
+
     /// Number of frequency bands.
     pub nb_ebands: usize,
 
@@ -77,6 +84,15 @@ pub struct CeltMode {
 
     /// Short MDCT size (2.5ms @ 48kHz = 120).
     pub short_mdct_size: usize,
+
+    /// Maximum LM (log2 of frame size multiplier).
+    pub max_lm: usize,
+
+    /// Window function for overlap-add.
+    pub window: &'static [i16],
+
+    /// De-emphasis filter coefficients [alpha, 0, 0, 0].
+    pub preemph: [i32; 4],
 }
 
 impl Default for CeltMode {
@@ -89,6 +105,8 @@ impl CeltMode {
     /// Create the standard CELT mode for 48kHz.
     pub const fn new() -> Self {
         Self {
+            fs: 48000,
+            overlap: OVERLAP,
             nb_ebands: NB_EBANDS,
             eff_ebands: NB_EBANDS,
             ebands: tables::EBAND5MS,
@@ -96,7 +114,10 @@ impl CeltMode {
             nb_alloc_vectors: NB_ALLOC_VECTORS,
             alloc_vectors: tables::BAND_ALLOCATION,
             cache: PulseCache::new(),
-            short_mdct_size: 120,
+            short_mdct_size: SHORT_MDCT_SIZE,
+            max_lm: MAX_LM,
+            window: tables::WINDOW120,
+            preemph: [27853, 0, 4096, 8192],
         }
     }
 
@@ -112,6 +133,12 @@ impl CeltMode {
     pub fn band_start(&self, band: usize, lm: usize) -> usize {
         let m = 1 << lm;
         m * self.ebands[band] as usize
+    }
+
+    /// Get the frame size in samples for a given LM.
+    #[inline]
+    pub fn frame_size(&self, lm: usize) -> usize {
+        self.short_mdct_size << lm
     }
 }
 

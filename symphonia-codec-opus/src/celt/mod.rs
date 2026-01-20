@@ -11,18 +11,14 @@
 //! and high bitrates in Opus. CELT uses MDCT for frequency domain coding
 //! combined with vector quantization.
 
+pub mod bands;
 pub mod constants;
 pub mod cwrs;
+pub mod decoder;
 pub mod laplace;
 pub mod mode;
 pub mod quant_bands;
 pub mod rate;
+pub mod synthesis;
 pub mod tables;
 pub mod vq;
-
-// TODO: Add additional modules:
-// mod decoder;
-// mod bands;
-// mod mdct;
-// mod pitch;
-// mod synthesis;

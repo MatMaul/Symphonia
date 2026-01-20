@@ -14,9 +14,12 @@
 #![allow(clippy::identity_op)]
 #![allow(clippy::manual_range_contains)]
 
+#[cfg(not(feature = "std"))]
+extern crate alloc;
+
 mod celt;
 mod entropy;
+mod opus;
 mod util;
 
-// TODO: Implement OpusDecoder
-// pub struct OpusDecoder { ... }
+pub use opus::OpusDecoder;

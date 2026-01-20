@@ -332,7 +332,18 @@ pub fn interp_bits2pulses(
     coded_bands
 }
 
+/// Initialize capacity for each band.
+pub fn init_caps(m: &CeltMode, cap: &mut [i32], lm: usize, channels: usize) {
+    let c = channels as i32;
+    for i in 0..m.nb_ebands {
+        let n = ((m.ebands[i + 1] - m.ebands[i]) as i32) << lm;
+        cap[i] = ((m.cache.caps[m.nb_ebands * (2 * lm + c - 1) + i] as i32) + 64) * c * n >> 2;
+    }
+}
+
 /// Compute bit allocation for all bands.
+///
+/// Returns (coded_bands, intensity, dual_stereo, balance).
 #[allow(clippy::too_many_arguments)]
 pub fn compute_allocation(
     m: &CeltMode,
@@ -341,19 +352,17 @@ pub fn compute_allocation(
     offsets: &[i32],
     cap: &[i32],
     alloc_trim: i32,
-    intensity: &mut i32,
-    dual_stereo: &mut i32,
     total: i32,
-    balance: &mut i32,
     pulses: &mut [i32],
     ebits: &mut [i32],
     fine_priority: &mut [i32],
     channels: usize,
-    lm: i32,
+    lm: usize,
     dec: &mut RangeDecoder<'_>,
-    prev: i32,
+    prev: bool,
+    prev_frames: i32,
     signal_bandwidth: i32,
-) -> usize {
+) -> (usize, usize, bool, i32) {
     let total = total.max(0);
     let len = m.nb_ebands;
     let c = channels as i32;
@@ -466,7 +475,13 @@ pub fn compute_allocation(
     }
 
     // Final interpolation
-    interp_bits2pulses(
+    let mut intensity = 0i32;
+    let mut dual_stereo = 0i32;
+    let mut balance = 0i32;
+    let lm = lm as i32;
+    let prev_i32 = if prev { prev_frames } else { 0 };
+
+    let coded_bands = interp_bits2pulses(
         m,
         start,
         end,
@@ -476,11 +491,11 @@ pub fn compute_allocation(
         &thresh,
         cap,
         total,
-        balance,
+        &mut balance,
         skip_rsv,
-        intensity,
+        &mut intensity,
         intensity_rsv,
-        dual_stereo,
+        &mut dual_stereo,
         dual_stereo_rsv,
         pulses,
         ebits,
@@ -488,9 +503,11 @@ pub fn compute_allocation(
         channels,
         lm,
         dec,
-        prev,
+        prev_i32,
         signal_bandwidth,
-    )
+    );
+
+    (coded_bands, intensity as usize, dual_stereo != 0, balance)
 }
 
 /// Integer division that rounds towards zero.

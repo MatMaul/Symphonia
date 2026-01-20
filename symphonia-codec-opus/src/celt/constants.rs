@@ -93,3 +93,21 @@ pub const SPREAD_NONE: i32 = 0;
 pub const SPREAD_LIGHT: i32 = 1;
 pub const SPREAD_NORMAL: i32 = 2;
 pub const SPREAD_AGGRESSIVE: i32 = 3;
+
+/// Overlap for 48kHz (120 samples = 2.5ms)
+pub const OVERLAP: usize = 120;
+
+/// Short MDCT size for 48kHz (120 samples = 2.5ms)
+pub const SHORT_MDCT_SIZE: usize = 120;
+
+/// Maximum LM (log2 of multiplier: 2.5ms * 8 = 20ms)
+pub const MAX_LM: usize = 3;
+
+/// Maximum frame size in samples (20ms @ 48kHz = 960)
+pub const MAX_FRAME_SIZE: usize = 960;
+
+/// De-emphasis filter coefficients (alpha ~= 0.85)
+pub const PREEMPH_COEF: i32 = 27853;
+
+/// Sampling rate
+pub const CELT_SAMPLING_RATE: i32 = 48000;
