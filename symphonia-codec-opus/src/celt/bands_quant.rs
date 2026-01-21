@@ -80,6 +80,7 @@ pub fn compute_theta_decode(
     dec: &mut EcDec<'_>,
     n: i32,
     b: &mut i32,
+    b_count: i32,
     b0: i32,
     lm: i32,
     stereo: bool,
@@ -161,12 +162,12 @@ pub fn compute_theta_decode(
     if itheta == 0 {
         imid = 32767;
         iside = 0;
-        *fill &= (1i32 << (b0 as u32)) - 1;
+        *fill &= (1i32 << (b_count as u32)) - 1;
         delta = -16384;
     } else if itheta == 16384 {
         imid = 0;
         iside = 32767;
-        *fill &= ((1i32 << (b0 as u32)) - 1) << (b0 as u32);
+        *fill &= ((1i32 << (b_count as u32)) - 1) << (b_count as u32);
         delta = 16384;
     } else {
         imid = bitexact_cos(itheta as i16) as i32;
@@ -207,7 +208,7 @@ pub fn quant_partition_decode(
             fill = (fill & 1) | (fill << 1);
         }
         let b_split = (b_count + 1) >> 1;
-        let mut sctx = compute_theta_decode(ctx, dec, n, &mut b, b0, lm, false, &mut fill);
+        let mut sctx = compute_theta_decode(ctx, dec, n, &mut b, b_split, b0, lm, false, &mut fill);
         let mid = sctx.imid as f32 * (1.0 / 32768.0);
         let side = sctx.iside as f32 * (1.0 / 32768.0);
         let mut delta = sctx.delta;
@@ -493,7 +494,7 @@ pub fn quant_band_stereo_decode(
     }
 
     let orig_fill = fill;
-    let sctx = compute_theta_decode(ctx, dec, n, &mut b, b_count, lm, true, &mut fill);
+    let sctx = compute_theta_decode(ctx, dec, n, &mut b, b_count, b_count, lm, true, &mut fill);
     let inv = sctx.inv;
     let itheta = sctx.itheta;
     let delta = sctx.delta;
@@ -827,11 +828,10 @@ pub fn quant_all_bands_decode(
                 (m * ebands[lowband_offset as usize] as i32 - norm_offset - n).max(0);
             let mut fold_start = lowband_offset;
             while fold_start > 0 {
-                let prev = fold_start - 1;
-                if m * ebands[prev as usize] as i32 <= effective_lowband + norm_offset {
+                fold_start -= 1;
+                if m * ebands[fold_start as usize] as i32 <= effective_lowband + norm_offset {
                     break;
                 }
-                fold_start = prev;
             }
             let mut fold_end = lowband_offset - 1;
             loop {
