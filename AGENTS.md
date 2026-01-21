@@ -7,6 +7,10 @@ is already ported. Keep this file updated as work progresses.
 - `symphonia-codec-opus/src/lib.rs`: crate root; currently only exposes the `celt`
   module (no full decoder wired yet).
 - `symphonia-codec-opus/src/celt/`: CELT port work-in-progress.
+- `symphonia-codec-opus/src/celt/generated/`: auto-generated CELT tables used by
+  `cwrs`, `quant_bands`, and `static_modes` (see `scripts/gen_celt_tables.py`).
+- `symphonia-codec-opus/scripts/gen_celt_tables.py`: generates Rust tables from
+  the Opus 1.6.1 C sources.
 - `symphonia-codec-opus/opus-1.6.1/`: reference C implementation (Opus 1.6.1).
 
 ### Implemented CELT pieces (Rust)
