@@ -2,7 +2,7 @@ use super::entcode::BITRES;
 use super::entdec::EcDec;
 use super::intrin::celt_udiv;
 use super::modes::CeltMode;
-use alloc::vec::Vec;
+use alloc::vec;
 
 pub const MAX_PSEUDO: i32 = 40;
 pub const LOG_MAX_PSEUDO: i32 = 6;

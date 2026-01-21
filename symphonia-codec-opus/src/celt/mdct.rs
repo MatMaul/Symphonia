@@ -1,5 +1,6 @@
 use super::fft::{KissFftCpx, opus_fft_impl};
 use super::modes::{CeltCoef, MdctLookup};
+use alloc::vec;
 
 pub fn mdct_forward(
     l: &MdctLookup,

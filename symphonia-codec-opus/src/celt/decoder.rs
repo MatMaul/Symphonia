@@ -9,6 +9,7 @@ use super::synthesis::celt_synthesis;
 use super::pitch::{comb_filter, COMBFILTER_MINPERIOD};
 use super::types::{CeltGlog, CeltSig, VERY_SMALL};
 use super::vq::SPREAD_NORMAL;
+use alloc::vec;
 use alloc::vec::Vec;
 
 pub const TRIM_ICDF: [u8; 11] = [126, 124, 119, 109, 87, 41, 19, 9, 4, 2, 0];

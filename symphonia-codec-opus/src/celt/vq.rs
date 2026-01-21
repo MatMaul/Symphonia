@@ -1,8 +1,9 @@
 use super::cwrs::decode_pulses;
 use super::entdec::EcDec;
 use super::intrin::celt_udiv;
-use super::math::{celt_cos_norm, celt_div};
+use super::math::{celt_cos_norm, celt_div, celt_sqrt};
 use super::types::{CeltNorm, Q15_ONE};
+use alloc::vec;
 
 pub const SPREAD_NONE: i32 = 0;
 pub const SPREAD_LIGHT: i32 = 1;
@@ -74,7 +75,7 @@ pub fn exp_rotation(x: &mut [CeltNorm], len: i32, dir: i32, stride: i32, k: i32,
 }
 
 fn normalise_residual(iy: &[i32], x: &mut [CeltNorm], n: usize, ryy: f32, gain: f32) {
-    let scale = if ryy > 0.0 { gain / ryy.sqrt() } else { 0.0 };
+    let scale = if ryy > 0.0 { gain / celt_sqrt(ryy) } else { 0.0 };
     for i in 0..n {
         x[i] = iy[i] as f32 * scale;
     }
@@ -117,7 +118,7 @@ pub fn renormalise_vector(x: &mut [CeltNorm], n: i32, gain: f32) {
     for i in 0..(n as usize) {
         energy += x[i] * x[i];
     }
-    let scale = gain / energy.sqrt();
+    let scale = gain / celt_sqrt(energy);
     for i in 0..(n as usize) {
         x[i] *= scale;
     }

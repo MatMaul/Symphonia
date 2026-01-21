@@ -1,4 +1,4 @@
-use alloc::vec::Vec;
+use alloc::vec;
 
 use super::bands::denormalise_bands;
 use super::mdct::mdct_backward;

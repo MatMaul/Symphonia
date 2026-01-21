@@ -1,8 +1,8 @@
 use super::entcode::BITRES;
 use super::entdec::EcDec;
-use super::types::{CeltEner, CeltNorm};
 use super::modes::CeltMode;
 use super::rate::{bits2pulses, get_pulses, pulses2bits, QTHETA_OFFSET, QTHETA_OFFSET_TWOPHASE};
+use super::types::{CeltEner, CeltNorm};
 use super::{
     alg_unquant, bitexact_cos, bitexact_log2tan, celt_lcg_rand, compute_qn, isqrt32,
     renormalise_vector, deinterleave_hadamard, interleave_hadamard, haar1, stereo_merge,
@@ -10,6 +10,8 @@ use super::{
 };
 use super::math::celt_sqrt;
 use super::intrin::{celt_sudiv, celt_udiv};
+use alloc::vec;
+use alloc::vec::Vec;
 
 #[derive(Clone, Copy, Default)]
 pub struct SplitCtx {

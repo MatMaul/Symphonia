@@ -19,6 +19,8 @@ extern crate alloc;
 
 mod celt;
 
+use alloc::boxed::Box;
+use alloc::vec::Vec;
 use symphonia_core::audio::{AsGenericAudioBufferRef, AudioBuffer, AudioMut, AudioSpec, Channels};
 use symphonia_core::codecs::CodecInfo;
 use symphonia_core::codecs::audio::{AudioCodecParameters, AudioDecoder, AudioDecoderOptions, FinalizeResult};

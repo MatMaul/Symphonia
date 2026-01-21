@@ -1,9 +1,9 @@
 use super::entcode::BITRES;
 use super::intrin::{celt_sudiv, celt_udiv, ec_ilog};
 use super::math::celt_exp2_db;
-use super::{renormalise_vector, CeltGlog, CeltMode, CeltNorm, CeltSig, E_MEANS};
 use super::math::{celt_rsqrt, celt_sqrt};
-use alloc::vec::Vec;
+use super::{renormalise_vector, CeltGlog, CeltMode, CeltNorm, CeltSig, E_MEANS};
+use alloc::vec;
 
 const ORDERY_TABLE: [i32; 30] = [
     1, 0, 3, 0, 2, 1, 7, 0, 4, 3, 6, 1, 5, 2, 15, 0, 8, 7, 12, 3, 11, 4, 14, 1, 9, 6,
@@ -292,8 +292,8 @@ pub fn stereo_merge(x: &mut [CeltNorm], y: &mut [CeltNorm], mid: f32, n: i32) {
         y[..(n as usize)].copy_from_slice(&x[..(n as usize)]);
         return;
     }
-    let lgain = 1.0 / el.sqrt();
-    let rgain = 1.0 / er.sqrt();
+    let lgain = 1.0 / celt_sqrt(el);
+    let rgain = 1.0 / celt_sqrt(er);
     for j in 0..(n as usize) {
         let l = mid * x[j];
         let r = y[j];
