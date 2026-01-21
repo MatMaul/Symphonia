@@ -5,7 +5,7 @@ is already ported. Keep this file updated as work progresses.
 
 ### Repo structure (Opus-specific)
 - `symphonia-codec-opus/src/lib.rs`: crate root; currently only exposes the `celt`
-  module (no full decoder wired yet).
+  module and a CELT-only `OpusDecoder` (packet parsing + audio decode).
 - `symphonia-codec-opus/src/celt/`: CELT port work-in-progress.
 - `symphonia-codec-opus/src/celt/generated/`: auto-generated CELT tables used by
   `cwrs`, `quant_bands`, and `static_modes` (see `scripts/gen_celt_tables.py`).
@@ -43,9 +43,9 @@ is already ported. Keep this file updated as work progresses.
   constants.
 
 ### Not yet implemented (next targets)
-- Complete CELT decoder features (postfilter/PLC, Opus packet parsing, error
-  handling parity with C).
-- Full decoder integration with Symphonia (`AudioDecoder` + packet decode).
+- Complete CELT decoder features (postfilter/PLC, full packet parsing parity,
+  bandwidth/end-band handling).
+- Opus decoder completeness (SILK/hybrid, multichannel, seek/padding handling).
 
 ### Architectural notes
 - Optimized/arch-specific code is not ported yet. Keep opt functions isolated
