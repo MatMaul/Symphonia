@@ -396,7 +396,7 @@ impl CeltDecoder {
                 .decode_mem
                 .chunks_exact_mut(decode_stride)
                 .take(self.channels as usize)
-                .map(|buf| &mut buf[frame_start..frame_start + n])
+                .map(|buf| &mut buf[frame_start..frame_start + n + overlap])
                 .collect();
             celt_synthesis(
                 self.mode,

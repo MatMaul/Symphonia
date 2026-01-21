@@ -88,20 +88,24 @@ fn cwrsi(n: i32, mut k: i32, mut i: u32, y: &mut [i32]) -> CeltVal {
             if s < 0 { i -= p; }
             let k0 = k;
             let q = pvq_u_row(n, n);
-            if q > i {
+            let p = if q > i {
                 k = n;
                 loop {
                     k -= 1;
-                    if pvq_u_row(k, n) <= i {
-                        break;
+                    let p = pvq_u_row(k, n);
+                    if p <= i {
+                        break p;
                     }
                 }
             } else {
-                while pvq_u_row(n, k) > i {
+                let mut p = pvq_u_row(n, k);
+                while p > i {
                     k -= 1;
+                    p = pvq_u_row(n, k);
                 }
-            }
-            i -= pvq_u_row(n, k);
+                p
+            };
+            i -= p;
             let val = (k0 - k + s) ^ s;
             y[idx] = val;
             yy += (val * val) as CeltVal;

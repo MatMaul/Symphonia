@@ -137,7 +137,9 @@ pub fn mdct_backward(
         let rev = st.bitrev[i] as usize;
         f2[rev] = KissFftCpx { r: yi, i: yr };
         xp1 += 2 * stride;
-        xp2 -= 2 * stride;
+        if i + 1 < n4 {
+            xp2 -= 2 * stride;
+        }
     }
 
     opus_fft_impl(st, &mut f2);
