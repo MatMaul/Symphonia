@@ -20,6 +20,25 @@ fn sqrtf(x: f32) -> f32 {
     libm::sqrtf(x)
 }
 
+#[cfg(feature = "std")]
+fn expf(x: f32) -> f32 {
+    x.exp()
+}
+
+#[cfg(not(feature = "std"))]
+fn expf(x: f32) -> f32 {
+    libm::expf(x)
+}
+
+#[cfg(feature = "std")]
+fn log2f(x: f32) -> f32 {
+    x.log2()
+}
+
+#[cfg(not(feature = "std"))]
+fn log2f(x: f32) -> f32 {
+    libm::log2f(x)
+}
 pub const PI: f32 = 3.1415926535897931;
 
 pub fn isqrt32(mut val: u32) -> u32 {
@@ -98,4 +117,20 @@ pub fn celt_atan2p_norm(y: f32, x: f32) -> f32 {
     } else {
         1.0 - celt_atan_norm(x / y)
     }
+}
+
+pub fn celt_log2(x: f32) -> f32 {
+    log2f(x)
+}
+
+pub fn celt_exp2(x: f32) -> f32 {
+    expf(x * 0.6931471805599453)
+}
+
+pub fn celt_log2_db(x: f32) -> f32 {
+    celt_log2(x)
+}
+
+pub fn celt_exp2_db(x: f32) -> f32 {
+    celt_exp2(x)
 }

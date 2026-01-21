@@ -43,6 +43,10 @@ impl<'a> EcDec<'a> {
         self.offs
     }
 
+    pub fn storage(&self) -> u32 {
+        self.storage
+    }
+
     pub fn error(&self) -> i32 {
         self.error
     }
