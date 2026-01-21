@@ -107,7 +107,7 @@ pub fn unquant_coarse_energy(
                 ec_laplace_decode(
                     dec,
                     (prob_model[pi as usize] as u32) << 7,
-                    (prob_model[pi as usize + 1] as u32) << 6,
+                    (prob_model[pi as usize + 1] as i32) << 6,
                 )
             } else if budget - tell >= 2 {
                 let q = dec.dec_icdf(&SMALL_ENERGY_ICDF, 2);

@@ -379,23 +379,18 @@ pub fn quant_band_decode(
     }
 
     let mut lowband_buf = lowband_scratch;
-    let mut lowband_read = lowband;
     let mut use_scratch = false;
-    if let (Some(lb), Some(scratch)) = (lowband_read, lowband_buf.as_deref_mut()) {
+    if let (Some(lb), Some(scratch)) = (lowband, lowband_buf.as_deref_mut()) {
         if recombine != 0 || ((n_b & 1) == 0 && tf_change < 0) || b0 > 1 {
             scratch[..n as usize].copy_from_slice(&lb[..n as usize]);
             use_scratch = true;
         }
-    }
-    if use_scratch {
-        lowband_read = lowband_buf.as_deref().map(|s| &s[..n as usize]);
     }
 
     for k in 0..recombine {
         if use_scratch {
             if let Some(scratch) = lowband_buf.as_deref_mut() {
                 haar1(scratch, n >> (k as u32), 1 << (k as u32));
-                lowband_read = Some(&scratch[..n as usize]);
             }
         }
         fill = BIT_INTERLEAVE_TABLE[(fill & 0xF) as usize] as i32
@@ -408,7 +403,6 @@ pub fn quant_band_decode(
         if use_scratch {
             if let Some(scratch) = lowband_buf.as_deref_mut() {
                 haar1(scratch, n_b, b_count);
-                lowband_read = Some(&scratch[..n as usize]);
             }
         }
         fill |= fill << (b_count as u32);
@@ -429,13 +423,16 @@ pub fn quant_band_decode(
                     b0 << (recombine as u32),
                     long_blocks,
                 );
-                lowband_read = Some(&scratch[..n as usize]);
             }
         }
     }
 
-    let mut cm =
-        quant_partition_decode(ctx, dec, x, n, b, b_count, lowband_read, lm, gain, fill);
+    let lowband_read = if use_scratch {
+        lowband_buf.as_deref().map(|scratch| &scratch[..n as usize])
+    } else {
+        lowband
+    };
+    let mut cm = quant_partition_decode(ctx, dec, x, n, b, b_count, lowband_read, lm, gain, fill);
 
     if ctx.resynth {
         if b0 > 1 {
