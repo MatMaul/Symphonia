@@ -79,6 +79,9 @@ impl OpusDecoder {
             return unsupported_error("opus: silk/hybrid not supported");
         }
 
+        self.celt.set_stream_channels(parsed.stream_channels as i32);
+        self.celt.set_end_band(parsed.end_band);
+
         let total_frames = parsed.frames.len();
         if total_frames == 0 {
             return decode_error("opus: empty packet");
@@ -160,9 +163,10 @@ impl RegisterableAudioDecoder for OpusDecoder {
 }
 
 struct ParsedOpusPacket<'a> {
-    toc: u8,
     config: u8,
     frame_size: usize,
+    stream_channels: usize,
+    end_band: i32,
     frames: Vec<&'a [u8]>,
 }
 
@@ -206,6 +210,32 @@ fn opus_packet_get_samples_per_frame(toc: u8, sample_rate: u32) -> usize {
     }
 }
 
+fn opus_packet_get_end_band(toc: u8) -> i32 {
+    let bandwidth = if (toc & 0x80) != 0 {
+        let mut bw = 1 + ((toc >> 5) & 0x3) as i32;
+        if bw == 1 {
+            bw = 0;
+        }
+        bw
+    } else if (toc & 0x60) == 0x60 {
+        if (toc & 0x10) != 0 { 4 } else { 3 }
+    } else {
+        ((toc >> 5) & 0x3) as i32
+    };
+
+    match bandwidth {
+        0 => 13,
+        1 | 2 => 17,
+        3 => 19,
+        4 => 21,
+        _ => 21,
+    }
+}
+
+fn opus_packet_get_nb_channels(toc: u8) -> usize {
+    if (toc & 0x4) != 0 { 2 } else { 1 }
+}
+
 fn parse_size(data: &[u8]) -> Result<(usize, usize)> {
     if data.is_empty() {
         return decode_error("opus: truncated size field");
@@ -226,6 +256,8 @@ fn parse_opus_packet(buf: &[u8]) -> Result<ParsedOpusPacket<'_>> {
     let toc = buf[0];
     let config = toc >> 3;
     let frame_size = opus_packet_get_samples_per_frame(toc, 48_000);
+    let end_band = opus_packet_get_end_band(toc);
+    let stream_channels = opus_packet_get_nb_channels(toc);
 
     let mut idx = 1usize;
     let mut remaining = buf.len() - 1;
@@ -332,5 +364,11 @@ fn parse_opus_packet(buf: &[u8]) -> Result<ParsedOpusPacket<'_>> {
         idx = end;
     }
 
-    Ok(ParsedOpusPacket { toc, config, frame_size, frames })
+    Ok(ParsedOpusPacket {
+        config,
+        frame_size,
+        stream_channels,
+        end_band,
+        frames,
+    })
 }

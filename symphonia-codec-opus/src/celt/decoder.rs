@@ -75,6 +75,17 @@ impl CeltDecoder {
         self.preemph_mem = [0.0; 2];
     }
 
+    pub fn set_stream_channels(&mut self, channels: i32) {
+        let channels = channels.clamp(1, self.channels);
+        self.stream_channels = channels;
+    }
+
+    pub fn set_end_band(&mut self, end: i32) {
+        let max_end = self.mode.nb_ebands;
+        let min_end = self.start + 1;
+        self.end = end.clamp(min_end, max_end);
+    }
+
     pub fn decode_frame(
         &mut self,
         data: &[u8],
