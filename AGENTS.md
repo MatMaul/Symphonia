@@ -24,7 +24,10 @@ is already ported. Keep this file updated as work progresses.
 - `symphonia-codec-opus/src/celt/laplace.rs`: Laplace decoding.
 - `symphonia-codec-opus/src/celt/cwrs.rs`: PVQ pulse tables + pulse decode.
 - `symphonia-codec-opus/src/celt/math.rs`: math helpers (float path).
-- `symphonia-codec-opus/src/celt/rate.rs`: rate utilities (pulses/bits).
+- `symphonia-codec-opus/src/celt/rate.rs`: rate utilities (pulses/bits,
+  allocation helpers).
+- `symphonia-codec-opus/src/celt/decoder.rs`: decoder helpers (tf_decode,
+  trim/spread icdf tables).
 - `symphonia-codec-opus/src/celt/bands.rs`: band helper utilities (hysteresis,
   bitexact cos/log2tan, LCG, denormalise, anti_collapse, hadamard + stereo helpers).
 - `symphonia-codec-opus/src/celt/bands_quant.rs`: decoder-side band quant

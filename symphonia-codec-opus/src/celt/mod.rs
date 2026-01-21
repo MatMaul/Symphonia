@@ -18,6 +18,7 @@ mod types;
 mod vq;
 mod synthesis;
 mod bands_quant;
+mod decoder;
 
 pub(crate) use entdec::EcDec;
 pub(crate) use fft::{KissFftCpx, opus_fft, opus_fft_impl, opus_ifft};
@@ -48,3 +49,6 @@ pub(crate) use bands_quant::{
     BandCtx, SplitCtx, compute_theta_decode, quant_band_decode, quant_band_n1,
     quant_band_stereo_decode, quant_partition_decode, quant_all_bands_decode,
 };
+pub(crate) use decoder::{tf_decode, SPREAD_ICDF, TRIM_ICDF};
+pub(crate) use rate::init_caps;
+pub(crate) use rate::clt_compute_allocation;
