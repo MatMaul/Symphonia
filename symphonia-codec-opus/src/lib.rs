@@ -16,3 +16,5 @@
 #![allow(clippy::manual_range_contains)]
 
 extern crate alloc;
+
+mod celt;
