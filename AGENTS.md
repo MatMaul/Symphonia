@@ -29,7 +29,7 @@ is already ported. Keep this file updated as work progresses.
   bitexact cos/log2tan, LCG, denormalise, anti_collapse, hadamard + stereo helpers).
 - `symphonia-codec-opus/src/celt/bands_quant.rs`: decoder-side band quant
   scaffolding (BandCtx, compute_theta decode, quant_partition decode, quant_band
-  mono + stereo decode).
+  mono + stereo decode, quant_all_bands decode flow).
 - `symphonia-codec-opus/src/celt/quant_bands.rs`: energy unquantization tables
   + decode helpers (coarse/fine/finalise).
 - `symphonia-codec-opus/src/celt/vq.rs`: PVQ decode helpers (exp_rotation,
@@ -40,7 +40,6 @@ is already ported. Keep this file updated as work progresses.
   constants.
 
 ### Not yet implemented (next targets)
-- Decoder-side `quant_all_bands` flow from `bands.c`.
 - Finish wiring CELT decoder with `celt_synthesis` and EcDec/static modes.
 - Full decoder integration with Symphonia (`AudioDecoder` + packet decode).
 

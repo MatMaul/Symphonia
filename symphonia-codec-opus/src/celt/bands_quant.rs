@@ -6,9 +6,10 @@ use super::rate::{bits2pulses, get_pulses, pulses2bits, QTHETA_OFFSET, QTHETA_OF
 use super::{
     alg_unquant, bitexact_cos, bitexact_log2tan, celt_lcg_rand, compute_qn, isqrt32,
     renormalise_vector, deinterleave_hadamard, interleave_hadamard, haar1, stereo_merge,
+    SPREAD_AGGRESSIVE,
 };
 use super::math::celt_sqrt;
-use super::intrin::celt_udiv;
+use super::intrin::{celt_sudiv, celt_udiv};
 
 #[derive(Clone, Copy, Default)]
 pub struct SplitCtx {
@@ -654,4 +655,427 @@ pub fn quant_band_stereo_decode(
     }
 
     cm
+}
+
+fn special_hybrid_folding(
+    mode: &CeltMode,
+    norm: &mut [CeltNorm],
+    mut norm2: Option<&mut [CeltNorm]>,
+    start: i32,
+    m: i32,
+    dual_stereo: bool,
+) {
+    let start = start as usize;
+    let nb_ebands = mode.nb_ebands as usize;
+    if start + 2 >= nb_ebands {
+        return;
+    }
+    let ebands = mode.ebands;
+    let n1 = (m * (ebands[start + 1] as i32 - ebands[start] as i32)) as usize;
+    let n2 = (m * (ebands[start + 2] as i32 - ebands[start + 1] as i32)) as usize;
+    if n2 <= n1 || n2 > norm.len() {
+        return;
+    }
+    let src_start = 2 * n1 - n2;
+    let src_end = src_start + (n2 - n1);
+    if src_end > norm.len() {
+        return;
+    }
+    norm[n1..n2].copy_from_slice(&norm[src_start..src_end]);
+    if dual_stereo {
+        if let Some(norm2) = norm2.as_deref_mut() {
+            norm2[n1..n2].copy_from_slice(&norm2[src_start..src_end]);
+        }
+    }
+}
+
+pub fn quant_all_bands_decode(
+    mode: &CeltMode,
+    start: i32,
+    end: i32,
+    x: &mut [CeltNorm],
+    mut y: Option<&mut [CeltNorm]>,
+    collapse_masks: &mut [u8],
+    pulses: &[i32],
+    short_blocks: bool,
+    spread: i32,
+    mut dual_stereo: bool,
+    intensity: i32,
+    tf_res: &[i32],
+    total_bits: i32,
+    balance: i32,
+    dec: &mut EcDec<'_>,
+    lm: i32,
+    coded_bands: i32,
+    seed: &mut u32,
+    disable_inv: bool,
+) {
+    let m = 1 << lm;
+    let b_blocks = if short_blocks { m } else { 1 };
+    let channels = if y.is_some() { 2 } else { 1 };
+    if channels == 1 {
+        dual_stereo = false;
+    }
+    let ebands = mode.ebands;
+    let nb_ebands = mode.nb_ebands as usize;
+
+    debug_assert!(start >= 0 && end <= mode.nb_ebands);
+    debug_assert!(pulses.len() >= end as usize);
+    debug_assert!(tf_res.len() >= end as usize);
+    debug_assert!(collapse_masks.len() >= channels as usize * nb_ebands);
+
+    let norm_offset = m * ebands[start as usize] as i32;
+    let last_band_start = m * ebands[nb_ebands - 1] as i32;
+    let norm_len = (last_band_start - norm_offset).max(0) as usize;
+    let mut norm = vec![0.0f32; norm_len];
+    let mut norm2 = if channels == 2 {
+        vec![0.0f32; norm_len]
+    } else {
+        Vec::new()
+    };
+
+    let mut max_n = 0i32;
+    for i in start..end {
+        let width = ebands[i as usize + 1] as i32 - ebands[i as usize] as i32;
+        max_n = max_n.max(m * width);
+    }
+    let scratch_len = max_n.max(0) as usize;
+    let mut band_scratch = vec![0.0f32; scratch_len];
+    let mut band_scratch_y = if channels == 2 {
+        vec![0.0f32; scratch_len]
+    } else {
+        Vec::new()
+    };
+    let mut lowband_scratch = vec![0.0f32; scratch_len];
+
+    let mut ctx = BandCtx {
+        m: mode,
+        i: start,
+        intensity,
+        spread,
+        tf_change: 0,
+        remaining_bits: 0,
+        band_e: None,
+        seed: *seed,
+        resynth: true,
+        disable_inv,
+        avoid_split_noise: b_blocks > 1,
+    };
+
+    let mut lowband_offset = 0;
+    let mut update_lowband = true;
+    let mut balance = balance;
+
+    for i in start..end {
+        ctx.i = i;
+        let last = i == end - 1;
+        let band_start = (m * ebands[i as usize] as i32) as usize;
+        let band_end = (m * ebands[i as usize + 1] as i32) as usize;
+        let n = (band_end - band_start) as i32;
+        debug_assert!(n > 0);
+
+        let tell = dec.tell_frac() as i32;
+        if i != start {
+            balance -= tell;
+        }
+        let remaining_bits = total_bits - tell - 1;
+        ctx.remaining_bits = remaining_bits;
+
+        let mut b = 0i32;
+        if i <= coded_bands - 1 {
+            let denom = (coded_bands - i).min(3);
+            let curr_balance = celt_sudiv(balance, denom);
+            let max_bits = (remaining_bits + 1).min(16383);
+            let mut b_tmp = pulses[i as usize] + curr_balance;
+            b_tmp = b_tmp.min(max_bits);
+            if b_tmp < 0 {
+                b_tmp = 0;
+            }
+            b = b_tmp;
+        }
+
+        if ctx.resynth
+            && (m * ebands[i as usize] as i32 - n >= m * ebands[start as usize] as i32
+                || i == start + 1)
+            && (update_lowband || lowband_offset == 0)
+        {
+            lowband_offset = i;
+        }
+        if i == start + 1 {
+            special_hybrid_folding(
+                mode,
+                &mut norm,
+                if channels == 2 { Some(&mut norm2) } else { None },
+                start,
+                m,
+                dual_stereo,
+            );
+        }
+
+        ctx.tf_change = tf_res[i as usize];
+
+        let mut effective_lowband = -1;
+        let (mut x_cm, mut y_cm);
+        if lowband_offset != 0
+            && (spread != SPREAD_AGGRESSIVE || b_blocks > 1 || ctx.tf_change < 0)
+        {
+            effective_lowband =
+                (m * ebands[lowband_offset as usize] as i32 - norm_offset - n).max(0);
+            let mut fold_start = lowband_offset;
+            while fold_start > 0 {
+                let prev = fold_start - 1;
+                if m * ebands[prev as usize] as i32 <= effective_lowband + norm_offset {
+                    break;
+                }
+                fold_start = prev;
+            }
+            let mut fold_end = lowband_offset - 1;
+            loop {
+                fold_end += 1;
+                if fold_end >= i {
+                    break;
+                }
+                if m * ebands[fold_end as usize] as i32 >= effective_lowband + norm_offset + n {
+                    break;
+                }
+            }
+            x_cm = 0;
+            y_cm = 0;
+            for fold_i in fold_start..fold_end {
+                let base = fold_i as usize * channels as usize;
+                x_cm |= collapse_masks[base] as u32;
+                y_cm |= collapse_masks[base + channels as usize - 1] as u32;
+            }
+        } else {
+            x_cm = (1u32 << (b_blocks as u32)) - 1;
+            y_cm = x_cm;
+        }
+
+        if dual_stereo && i == intensity {
+            dual_stereo = false;
+            if ctx.resynth && !norm.is_empty() {
+                let split =
+                    (m * ebands[i as usize] as i32 - norm_offset).max(0) as usize;
+                let len = split.min(norm.len());
+                for j in 0..len {
+                    norm[j] = 0.5 * (norm[j] + norm2[j]);
+                }
+            }
+        }
+
+        let use_output = i < mode.eff_ebands;
+        let mut x_band: &mut [CeltNorm];
+        let mut y_band: Option<&mut [CeltNorm]> = None;
+        if use_output {
+            debug_assert!(band_end <= x.len());
+            x_band = &mut x[band_start..band_end];
+            if let Some(y_buf) = y.as_deref_mut() {
+                debug_assert!(band_end <= y_buf.len());
+                y_band = Some(&mut y_buf[band_start..band_end]);
+            }
+        } else {
+            debug_assert!(scratch_len >= n as usize);
+            x_band = &mut band_scratch[..n as usize];
+            if channels == 2 {
+                y_band = Some(&mut band_scratch_y[..n as usize]);
+            }
+        }
+
+        let use_lowband_scratch = use_output && !last && scratch_len >= n as usize;
+        let lowband_out_offset = (band_start as i32 - norm_offset).max(0) as usize;
+
+        if dual_stereo {
+            let x_cm_out = {
+                let (lowband, lowband_out) = if last || lowband_out_offset >= norm.len() {
+                    let lowband = if effective_lowband >= 0
+                        && (effective_lowband as usize) < norm.len()
+                    {
+                        Some(&norm[effective_lowband as usize..])
+                    } else {
+                        None
+                    };
+                    (lowband, None)
+                } else {
+                    let (norm_prefix, norm_suffix) = norm.split_at_mut(lowband_out_offset);
+                    let lowband = if effective_lowband >= 0
+                        && (effective_lowband as usize) < norm_prefix.len()
+                    {
+                        Some(&norm_prefix[effective_lowband as usize..])
+                    } else {
+                        None
+                    };
+                    debug_assert!(norm_suffix.len() >= n as usize);
+                    (lowband, Some(&mut norm_suffix[..n as usize]))
+                };
+                let scratch = if use_lowband_scratch {
+                    Some(&mut lowband_scratch[..n as usize])
+                } else {
+                    None
+                };
+                quant_band_decode(
+                    &mut ctx,
+                    dec,
+                    x_band,
+                    n,
+                    b / 2,
+                    b_blocks,
+                    lowband,
+                    lm,
+                    lowband_out,
+                    1.0,
+                    scratch,
+                    x_cm as i32,
+                )
+            };
+            x_cm = x_cm_out;
+
+            if let Some(y_band) = y_band.as_deref_mut() {
+                let y_cm_out = {
+                    let (lowband, lowband_out) = if last || lowband_out_offset >= norm2.len() {
+                        let lowband = if effective_lowband >= 0
+                            && (effective_lowband as usize) < norm2.len()
+                        {
+                            Some(&norm2[effective_lowband as usize..])
+                        } else {
+                            None
+                        };
+                        (lowband, None)
+                    } else {
+                        let (norm_prefix, norm_suffix) = norm2.split_at_mut(lowband_out_offset);
+                        let lowband = if effective_lowband >= 0
+                            && (effective_lowband as usize) < norm_prefix.len()
+                        {
+                            Some(&norm_prefix[effective_lowband as usize..])
+                        } else {
+                            None
+                        };
+                        debug_assert!(norm_suffix.len() >= n as usize);
+                        (lowband, Some(&mut norm_suffix[..n as usize]))
+                    };
+                    let scratch = if use_lowband_scratch {
+                        Some(&mut lowband_scratch[..n as usize])
+                    } else {
+                        None
+                    };
+                    quant_band_decode(
+                        &mut ctx,
+                        dec,
+                        y_band,
+                        n,
+                        b / 2,
+                        b_blocks,
+                        lowband,
+                        lm,
+                        lowband_out,
+                        1.0,
+                        scratch,
+                        y_cm as i32,
+                    )
+                };
+                y_cm = y_cm_out;
+            } else {
+                y_cm = x_cm;
+            }
+        } else if let Some(y_band) = y_band.as_deref_mut() {
+            let cm = {
+                let (lowband, lowband_out) = if last || lowband_out_offset >= norm.len() {
+                    let lowband = if effective_lowband >= 0
+                        && (effective_lowband as usize) < norm.len()
+                    {
+                        Some(&norm[effective_lowband as usize..])
+                    } else {
+                        None
+                    };
+                    (lowband, None)
+                } else {
+                    let (norm_prefix, norm_suffix) = norm.split_at_mut(lowband_out_offset);
+                    let lowband = if effective_lowband >= 0
+                        && (effective_lowband as usize) < norm_prefix.len()
+                    {
+                        Some(&norm_prefix[effective_lowband as usize..])
+                    } else {
+                        None
+                    };
+                    debug_assert!(norm_suffix.len() >= n as usize);
+                    (lowband, Some(&mut norm_suffix[..n as usize]))
+                };
+                let scratch = if use_lowband_scratch {
+                    Some(&mut lowband_scratch[..n as usize])
+                } else {
+                    None
+                };
+                quant_band_stereo_decode(
+                    &mut ctx,
+                    dec,
+                    x_band,
+                    y_band,
+                    n,
+                    b,
+                    b_blocks,
+                    lowband,
+                    lm,
+                    lowband_out,
+                    scratch,
+                    (x_cm | y_cm) as i32,
+                )
+            };
+            x_cm = cm;
+            y_cm = cm;
+        } else {
+            let cm = {
+                let (lowband, lowband_out) = if last || lowband_out_offset >= norm.len() {
+                    let lowband = if effective_lowband >= 0
+                        && (effective_lowband as usize) < norm.len()
+                    {
+                        Some(&norm[effective_lowband as usize..])
+                    } else {
+                        None
+                    };
+                    (lowband, None)
+                } else {
+                    let (norm_prefix, norm_suffix) = norm.split_at_mut(lowband_out_offset);
+                    let lowband = if effective_lowband >= 0
+                        && (effective_lowband as usize) < norm_prefix.len()
+                    {
+                        Some(&norm_prefix[effective_lowband as usize..])
+                    } else {
+                        None
+                    };
+                    debug_assert!(norm_suffix.len() >= n as usize);
+                    (lowband, Some(&mut norm_suffix[..n as usize]))
+                };
+                let scratch = if use_lowband_scratch {
+                    Some(&mut lowband_scratch[..n as usize])
+                } else {
+                    None
+                };
+                quant_band_decode(
+                    &mut ctx,
+                    dec,
+                    x_band,
+                    n,
+                    b,
+                    b_blocks,
+                    lowband,
+                    lm,
+                    lowband_out,
+                    1.0,
+                    scratch,
+                    (x_cm | y_cm) as i32,
+                )
+            };
+            x_cm = cm;
+            y_cm = cm;
+        }
+
+        let mask_base = i as usize * channels as usize;
+        collapse_masks[mask_base] = x_cm as u8;
+        collapse_masks[mask_base + channels as usize - 1] = y_cm as u8;
+        balance += pulses[i as usize] + tell;
+
+        update_lowband = b > (n << BITRES);
+        ctx.avoid_split_noise = false;
+    }
+
+    *seed = ctx.seed;
 }
