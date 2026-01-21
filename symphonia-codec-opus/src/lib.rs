@@ -19,12 +19,12 @@ extern crate alloc;
 
 mod celt;
 
-use symphonia_core::audio::{AudioBuffer, AudioSpec, Channels};
+use symphonia_core::audio::{AsGenericAudioBufferRef, AudioBuffer, AudioMut, AudioSpec, Channels};
 use symphonia_core::codecs::CodecInfo;
 use symphonia_core::codecs::audio::{AudioCodecParameters, AudioDecoder, AudioDecoderOptions, FinalizeResult};
 use symphonia_core::codecs::audio::well_known::CODEC_ID_OPUS;
 use symphonia_core::codecs::registry::{RegisterableAudioDecoder, SupportedAudioCodec};
-use symphonia_core::errors::{Result, decode_error, unsupported_error};
+use symphonia_core::errors::{Error, Result, decode_error, unsupported_error};
 use symphonia_core::formats::Packet;
 use symphonia_core::io::{BufReader, ReadBytes};
 use symphonia_core::support_audio_codec;
@@ -53,12 +53,15 @@ impl OpusDecoder {
         if channels > 2 {
             return unsupported_error("opus: multichannel not supported");
         }
-        let mode = celt::mode_from_static(48_000, 960)
-            .ok_or_else(|| unsupported_error("opus: unsupported static mode"))?;
-        let celt = CeltDecoder::new(mode, channels as i32).map_err(|_| decode_error("opus: decoder init failed"))?;
+        let mode = match celt::mode_from_static(48_000, 960) {
+            Some(mode) => mode,
+            None => return unsupported_error("opus: unsupported static mode"),
+        };
+        let celt = CeltDecoder::new(mode, channels as i32)
+            .map_err(|_| Error::DecodeError("opus: decoder init failed"))?;
 
-        let spec = match params.channels {
-            Some(ch) => AudioSpec::new(48_000, ch),
+        let spec = match params.channels.as_ref() {
+            Some(ch) => AudioSpec::new(48_000, ch.clone()),
             None => AudioSpec::new(48_000, Channels::Discrete(channels as u16)),
         };
 
@@ -90,11 +93,12 @@ impl OpusDecoder {
 
         for (idx, frame) in parsed.frames.iter().enumerate() {
             let offset = idx * frame_size;
-            let mut out_refs: Vec<&mut [f32]> = Vec::new();
-            for ch in 0..self.channels {
-                let plane = self.buf.chan_mut(ch).unwrap();
-                out_refs.push(&mut plane[offset..offset + frame_size]);
-            }
+            let mut out_refs: Vec<&mut [f32]> = self
+                .buf
+                .iter_planes_mut()
+                .take(self.channels)
+                .map(|plane| &mut plane[offset..offset + frame_size])
+                .collect();
             match self.celt.decode_frame(frame, &mut out_refs, parsed.frame_size as i32) {
                 Ok(_) => {}
                 Err(CeltDecodeError::BufferTooSmall) => {

@@ -256,17 +256,19 @@ impl CeltDecoder {
         );
 
         let mut x = vec![0.0f32; self.stream_channels as usize * n];
+        let (x0, x1) = if self.stream_channels == 2 {
+            let (left, right) = x.split_at_mut(n);
+            (left, Some(right))
+        } else {
+            (x.as_mut_slice(), None)
+        };
         let mut collapse_masks = vec![0u8; self.stream_channels as usize * nb_ebands];
         quant_all_bands_decode(
             self.mode,
             start,
             end,
-            &mut x,
-            if self.stream_channels == 2 {
-                Some(&mut x[n..])
-            } else {
-                None
-            },
+            x0,
+            x1,
             &mut collapse_masks,
             &pulses,
             short_blocks,
@@ -325,10 +327,8 @@ impl CeltDecoder {
             }
         }
 
-        let mut out_refs: Vec<&mut [CeltSig]> = Vec::with_capacity(self.channels as usize);
-        for ch in 0..(self.channels as usize) {
-            out_refs.push(&mut out[ch][..n]);
-        }
+        let mut out_refs: Vec<&mut [CeltSig]> =
+            out.iter_mut().take(self.channels as usize).map(|plane| &mut plane[..n]).collect();
         celt_synthesis(
             self.mode,
             &x,
@@ -354,7 +354,8 @@ impl CeltDecoder {
         let nb_ebands = self.mode.nb_ebands as usize;
         if self.stream_channels == 1 {
             let offset = nb_ebands;
-            self.old_band_e[offset..offset + nb_ebands].copy_from_slice(&self.old_band_e[..nb_ebands]);
+            let (left, right) = self.old_band_e.split_at_mut(offset);
+            right[..nb_ebands].copy_from_slice(&left[..nb_ebands]);
         }
 
         if !is_transient {

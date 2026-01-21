@@ -681,10 +681,12 @@ fn special_hybrid_folding(
     if src_end > norm.len() {
         return;
     }
-    norm[n1..n2].copy_from_slice(&norm[src_start..src_end]);
+    let (norm_prefix, norm_suffix) = norm.split_at_mut(n1);
+    norm_suffix[..(n2 - n1)].copy_from_slice(&norm_prefix[src_start..src_end]);
     if dual_stereo {
         if let Some(norm2) = norm2.as_deref_mut() {
-            norm2[n1..n2].copy_from_slice(&norm2[src_start..src_end]);
+            let (norm2_prefix, norm2_suffix) = norm2.split_at_mut(n1);
+            norm2_suffix[..(n2 - n1)].copy_from_slice(&norm2_prefix[src_start..src_end]);
         }
     }
 }
