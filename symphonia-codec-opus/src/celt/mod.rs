@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+mod bands;
 mod cwrs;
 mod entcode;
 mod entdec;
@@ -28,3 +29,4 @@ pub(crate) use rate::{
 pub(crate) use mdct::{mdct_backward, mdct_forward};
 pub(crate) use modes::CeltMode;
 pub(crate) use static_modes::mode_from_static;
+pub(crate) use bands::{bitexact_cos, bitexact_log2tan, celt_lcg_rand, hysteresis_decision};
