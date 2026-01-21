@@ -27,13 +27,14 @@ is already ported. Keep this file updated as work progresses.
 - `symphonia-codec-opus/src/celt/math.rs`: math helpers (float path).
 - `symphonia-codec-opus/src/celt/rate.rs`: rate utilities (pulses/bits,
   allocation helpers).
-- `symphonia-codec-opus/src/celt/decoder.rs`: CELT decoder scaffolding
-  (tf_decode, trim/spread icdf tables, basic CELT-only decode flow).
+- `symphonia-codec-opus/src/celt/decoder.rs`: CELT decoder flow (tf_decode,
+  trim/spread icdf tables, decode history, postfilter decode + apply).
 - `symphonia-codec-opus/src/celt/bands.rs`: band helper utilities (hysteresis,
   bitexact cos/log2tan, LCG, denormalise, anti_collapse, hadamard + stereo helpers).
 - `symphonia-codec-opus/src/celt/bands_quant.rs`: decoder-side band quant
   scaffolding (BandCtx, compute_theta decode, quant_partition decode, quant_band
   mono + stereo decode, quant_all_bands decode flow).
+- `symphonia-codec-opus/src/celt/pitch.rs`: comb filter helpers for CELT postfilter.
 - `symphonia-codec-opus/src/celt/quant_bands.rs`: energy unquantization tables
   + decode helpers (coarse/fine/finalise).
 - `symphonia-codec-opus/src/celt/vq.rs`: PVQ decode helpers (exp_rotation,
@@ -44,8 +45,8 @@ is already ported. Keep this file updated as work progresses.
   constants.
 
 ### Not yet implemented (next targets)
-- Complete CELT decoder features (postfilter/PLC, full packet parsing parity,
-  bandwidth/end-band handling).
+- Complete CELT decoder features (PLC/deep PLC, prefilter/fold, full packet
+  parsing parity).
 - Opus decoder completeness (SILK/hybrid, multichannel, seek/padding handling).
 
 ### Architectural notes

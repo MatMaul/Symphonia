@@ -6,12 +6,16 @@ use super::modes::CeltMode;
 use super::quant_bands::{unquant_coarse_energy, unquant_energy_finalise, unquant_fine_energy};
 use super::rate::{clt_compute_allocation, init_caps};
 use super::synthesis::celt_synthesis;
+use super::pitch::{comb_filter, COMBFILTER_MINPERIOD};
 use super::types::{CeltGlog, CeltSig, VERY_SMALL};
 use super::vq::SPREAD_NORMAL;
 use alloc::vec::Vec;
 
 pub const TRIM_ICDF: [u8; 11] = [126, 124, 119, 109, 87, 41, 19, 9, 4, 2, 0];
 pub const SPREAD_ICDF: [u8; 4] = [25, 23, 2, 0];
+const TAPSET_ICDF: [u8; 3] = [2, 1, 0];
+const DECODE_BUFFER_SIZE: usize = 2048;
+const POSTFILTER_GAIN_STEP: f32 = 0.09375;
 
 const TF_SELECT_TABLE: [[i8; 8]; 4] = [
     [0, -1, 0, -1, 0, -1, 0, -1],
@@ -40,6 +44,13 @@ pub struct CeltDecoder {
     old_log_e: Vec<CeltGlog>,
     old_log_e2: Vec<CeltGlog>,
     preemph_mem: [CeltSig; 2],
+    decode_mem: Vec<CeltSig>,
+    postfilter_period: i32,
+    postfilter_period_old: i32,
+    postfilter_gain: CeltSig,
+    postfilter_gain_old: CeltSig,
+    postfilter_tapset: i32,
+    postfilter_tapset_old: i32,
 }
 
 impl CeltDecoder {
@@ -48,6 +59,8 @@ impl CeltDecoder {
             return Err(CeltDecodeError::InvalidPacket);
         }
         let nb_ebands = mode.nb_ebands as usize;
+        let overlap = mode.overlap as usize;
+        let decode_mem_len = channels as usize * (DECODE_BUFFER_SIZE + overlap);
         let mut decoder = Self {
             mode,
             channels,
@@ -61,6 +74,13 @@ impl CeltDecoder {
             old_log_e: vec![-28.0f32; 2 * nb_ebands],
             old_log_e2: vec![-28.0f32; 2 * nb_ebands],
             preemph_mem: [0.0f32; 2],
+            decode_mem: vec![0.0f32; decode_mem_len],
+            postfilter_period: 0,
+            postfilter_period_old: 0,
+            postfilter_gain: 0.0,
+            postfilter_gain_old: 0.0,
+            postfilter_tapset: 0,
+            postfilter_tapset_old: 0,
         };
         decoder.reset();
         Ok(decoder)
@@ -73,6 +93,13 @@ impl CeltDecoder {
         self.old_log_e[..2 * nb_ebands].fill(-28.0);
         self.old_log_e2[..2 * nb_ebands].fill(-28.0);
         self.preemph_mem = [0.0; 2];
+        self.decode_mem.fill(0.0);
+        self.postfilter_period = 0;
+        self.postfilter_period_old = 0;
+        self.postfilter_gain = 0.0;
+        self.postfilter_gain_old = 0.0;
+        self.postfilter_tapset = 0;
+        self.postfilter_tapset_old = 0;
     }
 
     pub fn set_stream_channels(&mut self, channels: i32) {
@@ -111,6 +138,12 @@ impl CeltDecoder {
         }
 
         let n = (self.mode.short_mdct_size << (lm as u32)) as usize;
+        if n > DECODE_BUFFER_SIZE {
+            return Err(CeltDecodeError::InvalidFrameSize);
+        }
+        let overlap = self.mode.overlap as usize;
+        let decode_stride = DECODE_BUFFER_SIZE + overlap;
+        let frame_start = DECODE_BUFFER_SIZE - n;
         for ch in 0..(self.channels as usize) {
             if out[ch].len() < n {
                 return Err(CeltDecodeError::BufferTooSmall);
@@ -147,6 +180,23 @@ impl CeltDecoder {
                 dec.dec_bits(remaining);
             }
             tell = total_bits;
+        }
+
+        let mut postfilter_gain = 0.0f32;
+        let mut postfilter_pitch = 0i32;
+        let mut postfilter_tapset = 0i32;
+        if start == 0 && tell + 16 <= total_bits {
+            if dec.dec_bit_logp(1) != 0 {
+                let octave = dec.dec_uint(6) as u32;
+                postfilter_pitch =
+                    ((16u32 << octave) + dec.dec_bits(4 + octave)).saturating_sub(1) as i32;
+                let qg = dec.dec_bits(3) as i32;
+                if dec.tell() + 2 <= total_bits {
+                    postfilter_tapset = dec.dec_icdf(&TAPSET_ICDF, 2);
+                }
+                postfilter_gain = POSTFILTER_GAIN_STEP * (qg as f32 + 1.0);
+            }
+            tell = dec.tell();
         }
 
         let mut is_transient = 0;
@@ -266,6 +316,8 @@ impl CeltDecoder {
             self.stream_channels,
         );
 
+        self.shift_decode_mem(n);
+
         let mut x = vec![0.0f32; self.stream_channels as usize * n];
         let (x0, x1) = if self.stream_channels == 2 {
             let (left, right) = x.split_at_mut(n);
@@ -338,27 +390,122 @@ impl CeltDecoder {
             }
         }
 
-        let mut out_refs: Vec<&mut [CeltSig]> =
-            out.iter_mut().take(self.channels as usize).map(|plane| &mut plane[..n]).collect();
-        celt_synthesis(
-            self.mode,
-            &x,
-            &mut out_refs,
-            &self.old_band_e,
-            start,
-            eff_end,
-            self.stream_channels,
-            self.channels,
-            short_blocks,
+        {
+            let mut out_refs: Vec<&mut [CeltSig]> = self
+                .decode_mem
+                .chunks_exact_mut(decode_stride)
+                .take(self.channels as usize)
+                .map(|buf| &mut buf[frame_start..frame_start + n])
+                .collect();
+            celt_synthesis(
+                self.mode,
+                &x,
+                &mut out_refs,
+                &self.old_band_e,
+                start,
+                eff_end,
+                self.stream_channels,
+                self.channels,
+                short_blocks,
+                lm,
+                self.downsample,
+                silence,
+            );
+        }
+
+        self.apply_postfilter(
+            n,
+            frame_start,
+            postfilter_pitch,
+            postfilter_gain,
+            postfilter_tapset,
             lm,
-            self.downsample,
-            silence,
         );
 
         self.update_energy_state(short_blocks, start, end);
+        let mut out_refs: Vec<&mut [CeltSig]> =
+            out.iter_mut().take(self.channels as usize).map(|plane| &mut plane[..n]).collect();
+        for ch in 0..(self.channels as usize) {
+            let base = ch * decode_stride;
+            let src = &self.decode_mem[base + frame_start..base + frame_start + n];
+            out_refs[ch].copy_from_slice(src);
+        }
         self.deemphasis_simple(out_refs.as_mut_slice(), n);
 
         Ok(n as i32)
+    }
+
+    fn shift_decode_mem(&mut self, n: usize) {
+        debug_assert!(n <= DECODE_BUFFER_SIZE);
+        let overlap = self.mode.overlap as usize;
+        let stride = DECODE_BUFFER_SIZE + overlap;
+        for ch in 0..(self.channels as usize) {
+            let base = ch * stride;
+            let buf = &mut self.decode_mem[base..base + stride];
+            buf.copy_within(n..stride, 0);
+        }
+    }
+
+    fn apply_postfilter(
+        &mut self,
+        n: usize,
+        frame_start: usize,
+        postfilter_pitch: i32,
+        postfilter_gain: CeltSig,
+        postfilter_tapset: i32,
+        lm: i32,
+    ) {
+        self.postfilter_period = self.postfilter_period.max(COMBFILTER_MINPERIOD);
+        self.postfilter_period_old = self.postfilter_period_old.max(COMBFILTER_MINPERIOD);
+
+        let overlap = self.mode.overlap as usize;
+        let stride = DECODE_BUFFER_SIZE + overlap;
+        let short_mdct_size = self.mode.short_mdct_size as usize;
+
+        for ch in 0..(self.channels as usize) {
+            let base = ch * stride;
+            let buf = &mut self.decode_mem[base..base + stride];
+            comb_filter(
+                buf,
+                frame_start,
+                self.postfilter_period_old,
+                self.postfilter_period,
+                short_mdct_size,
+                self.postfilter_gain_old,
+                self.postfilter_gain,
+                self.postfilter_tapset_old,
+                self.postfilter_tapset,
+                self.mode.window,
+                overlap,
+            );
+            if lm != 0 {
+                comb_filter(
+                    buf,
+                    frame_start + short_mdct_size,
+                    self.postfilter_period,
+                    postfilter_pitch,
+                    n - short_mdct_size,
+                    self.postfilter_gain,
+                    postfilter_gain,
+                    self.postfilter_tapset,
+                    postfilter_tapset,
+                    self.mode.window,
+                    overlap,
+                );
+            }
+        }
+
+        self.postfilter_period_old = self.postfilter_period;
+        self.postfilter_gain_old = self.postfilter_gain;
+        self.postfilter_tapset_old = self.postfilter_tapset;
+        self.postfilter_period = postfilter_pitch;
+        self.postfilter_gain = postfilter_gain;
+        self.postfilter_tapset = postfilter_tapset;
+        if lm != 0 {
+            self.postfilter_period_old = self.postfilter_period;
+            self.postfilter_gain_old = self.postfilter_gain;
+            self.postfilter_tapset_old = self.postfilter_tapset;
+        }
     }
 
     fn update_energy_state(&mut self, is_transient: bool, start: i32, end: i32) {

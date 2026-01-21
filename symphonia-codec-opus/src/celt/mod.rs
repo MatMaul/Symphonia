@@ -11,6 +11,7 @@ mod math;
 mod mfrngcod;
 mod mdct;
 mod modes;
+mod pitch;
 mod rate;
 mod static_modes;
 mod quant_bands;
@@ -36,6 +37,7 @@ pub(crate) use rate::{
 };
 pub(crate) use mdct::{mdct_backward, mdct_forward};
 pub(crate) use modes::CeltMode;
+pub(crate) use pitch::{comb_filter, COMBFILTER_MAXPERIOD, COMBFILTER_MINPERIOD};
 pub(crate) use static_modes::mode_from_static;
 pub(crate) use bands::{
     anti_collapse, bitexact_cos, bitexact_log2tan, celt_lcg_rand, denormalise_bands,
