@@ -184,6 +184,8 @@ pub mod default {
         pub use symphonia_codec_pcm::PcmDecoder;
         #[cfg(feature = "vorbis")]
         pub use symphonia_codec_vorbis::VorbisDecoder;
+        #[cfg(feature = "opus")]
+        pub use symphonia_codec_opus::OpusDecoder;
 
         #[deprecated = "use `default::codecs::MpaDecoder` instead"]
         #[cfg(any(feature = "mp1", feature = "mp2", feature = "mp3"))]
@@ -301,6 +303,9 @@ pub mod default {
 
         #[cfg(feature = "vorbis")]
         registry.register_audio_decoder::<codecs::VorbisDecoder>();
+
+        #[cfg(feature = "opus")]
+        registry.register_audio_decoder::<codecs::OpusDecoder>();
     }
 
     /// Registers all the formats selected by the `feature` flags in the includer's `Cargo.toml` on
