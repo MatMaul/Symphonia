@@ -45,5 +45,6 @@ pub(crate) use types::{CeltEner, CeltGlog, CeltNorm, CeltRes, CeltSig, EPSILON, 
 pub(crate) use vq::{alg_unquant, exp_rotation, renormalise_vector, SPREAD_AGGRESSIVE, SPREAD_LIGHT, SPREAD_NONE, SPREAD_NORMAL};
 pub(crate) use synthesis::celt_synthesis;
 pub(crate) use bands_quant::{
-    BandCtx, SplitCtx, compute_theta_decode, quant_band_n1, quant_partition_decode,
+    BandCtx, SplitCtx, compute_theta_decode, quant_band_decode, quant_band_n1,
+    quant_band_stereo_decode, quant_partition_decode,
 };
