@@ -17,6 +17,7 @@ mod quant_bands;
 mod types;
 mod vq;
 mod synthesis;
+mod bands_quant;
 
 pub(crate) use entdec::EcDec;
 pub(crate) use fft::{KissFftCpx, opus_fft, opus_fft_impl, opus_ifft};
@@ -37,8 +38,12 @@ pub(crate) use modes::CeltMode;
 pub(crate) use static_modes::mode_from_static;
 pub(crate) use bands::{
     anti_collapse, bitexact_cos, bitexact_log2tan, celt_lcg_rand, denormalise_bands,
-    hysteresis_decision,
+    compute_qn, deinterleave_hadamard, haar1, hysteresis_decision, intensity_stereo,
+    interleave_hadamard, stereo_merge, stereo_split,
 };
 pub(crate) use types::{CeltEner, CeltGlog, CeltNorm, CeltRes, CeltSig, EPSILON, Q15_ONE, Q31_ONE, VERY_SMALL};
 pub(crate) use vq::{alg_unquant, exp_rotation, renormalise_vector, SPREAD_AGGRESSIVE, SPREAD_LIGHT, SPREAD_NONE, SPREAD_NORMAL};
 pub(crate) use synthesis::celt_synthesis;
+pub(crate) use bands_quant::{
+    BandCtx, SplitCtx, compute_theta_decode, quant_band_n1, quant_partition_decode,
+};

@@ -22,7 +22,9 @@ is already ported. Keep this file updated as work progresses.
 - `symphonia-codec-opus/src/celt/math.rs`: math helpers (float path).
 - `symphonia-codec-opus/src/celt/rate.rs`: rate utilities (pulses/bits).
 - `symphonia-codec-opus/src/celt/bands.rs`: band helper utilities (hysteresis,
-  bitexact cos/log2tan, LCG, denormalise, anti_collapse).
+  bitexact cos/log2tan, LCG, denormalise, anti_collapse, hadamard + stereo helpers).
+- `symphonia-codec-opus/src/celt/bands_quant.rs`: decoder-side band quant
+  scaffolding (BandCtx, quant_band_n1, compute_theta decode, quant_partition decode).
 - `symphonia-codec-opus/src/celt/quant_bands.rs`: energy unquantization tables
   + decode helpers (coarse/fine/finalise).
 - `symphonia-codec-opus/src/celt/vq.rs`: PVQ decode helpers (exp_rotation,

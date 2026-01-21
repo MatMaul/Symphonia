@@ -1,7 +1,14 @@
-use super::intrin::{celt_udiv, ec_ilog};
+use super::entcode::BITRES;
+use super::intrin::{celt_sudiv, celt_udiv, ec_ilog};
 use super::math::celt_exp2_db;
-use super::{celt_lcg_rand, renormalise_vector, CeltGlog, CeltMode, CeltNorm, CeltSig, E_MEANS};
-use super::math::celt_rsqrt;
+use super::{renormalise_vector, CeltGlog, CeltMode, CeltNorm, CeltSig, E_MEANS};
+use super::math::{celt_rsqrt, celt_sqrt};
+use alloc::vec::Vec;
+
+const ORDERY_TABLE: [i32; 30] = [
+    1, 0, 3, 0, 2, 1, 7, 0, 4, 3, 6, 1, 5, 2, 15, 0, 8, 7, 12, 3, 11, 4, 14, 1, 9, 6,
+    13, 2, 10, 5,
+];
 
 #[inline]
 fn frac_mul16(a: i32, b: i32) -> i32 {
@@ -163,5 +170,134 @@ pub fn anti_collapse(
                 );
             }
         }
+    }
+}
+
+pub fn deinterleave_hadamard(x: &mut [CeltNorm], n0: i32, stride: i32, hadamard: bool) {
+    let n = (n0 * stride) as usize;
+    let mut tmp = vec![0.0f32; n];
+    if hadamard {
+        let offset = (stride as usize).saturating_sub(2);
+        let ordery = &ORDERY_TABLE[offset..offset + stride as usize];
+        for i in 0..(stride as usize) {
+            for j in 0..(n0 as usize) {
+                tmp[(ordery[i] as usize) * n0 as usize + j] = x[j * stride as usize + i];
+            }
+        }
+    } else {
+        for i in 0..(stride as usize) {
+            for j in 0..(n0 as usize) {
+                tmp[i * n0 as usize + j] = x[j * stride as usize + i];
+            }
+        }
+    }
+    x[..n].copy_from_slice(&tmp[..n]);
+}
+
+pub fn interleave_hadamard(x: &mut [CeltNorm], n0: i32, stride: i32, hadamard: bool) {
+    let n = (n0 * stride) as usize;
+    let mut tmp = vec![0.0f32; n];
+    if hadamard {
+        let offset = (stride as usize).saturating_sub(2);
+        let ordery = &ORDERY_TABLE[offset..offset + stride as usize];
+        for i in 0..(stride as usize) {
+            for j in 0..(n0 as usize) {
+                tmp[j * stride as usize + i] = x[(ordery[i] as usize) * n0 as usize + j];
+            }
+        }
+    } else {
+        for i in 0..(stride as usize) {
+            for j in 0..(n0 as usize) {
+                tmp[j * stride as usize + i] = x[i * n0 as usize + j];
+            }
+        }
+    }
+    x[..n].copy_from_slice(&tmp[..n]);
+}
+
+pub fn haar1(x: &mut [CeltNorm], n0: i32, stride: i32) {
+    let n0 = (n0 >> 1) as usize;
+    let stride = stride as usize;
+    for i in 0..stride {
+        for j in 0..n0 {
+            let idx0 = stride * 2 * j + i;
+            let idx1 = stride * (2 * j + 1) + i;
+            let tmp1 = 0.70710678 * x[idx0];
+            let tmp2 = 0.70710678 * x[idx1];
+            x[idx0] = tmp1 + tmp2;
+            x[idx1] = tmp1 - tmp2;
+        }
+    }
+}
+
+pub fn compute_qn(n: i32, b: i32, offset: i32, pulse_cap: i32, stereo: bool) -> i32 {
+    const EXP2_TABLE8: [i16; 8] = [16384, 17866, 19483, 21247, 23170, 25267, 27554, 30048];
+    let mut n2 = 2 * n - 1;
+    if stereo && n == 2 {
+        n2 -= 1;
+    }
+    let bitres = BITRES as i32;
+    let mut qb = celt_sudiv(b + n2 * offset, n2);
+    qb = qb.min(b - pulse_cap - (4 << bitres));
+    qb = qb.min(8 << bitres);
+
+    if qb < (1 << bitres >> 1) {
+        1
+    } else {
+        let idx = (qb & 0x7) as usize;
+        let qn = (EXP2_TABLE8[idx] as i32) >> (14 - (qb >> bitres));
+        ((qn + 1) >> 1) << 1
+    }
+}
+
+pub fn intensity_stereo(
+    mode: &CeltMode,
+    x: &mut [CeltNorm],
+    y: &[CeltNorm],
+    band_e: &[CeltNorm],
+    band_id: i32,
+    n: i32,
+) {
+    let i = band_id as usize;
+    let left = band_e[i];
+    let right = band_e[i + mode.nb_ebands as usize];
+    let norm = 1.0e-15 + celt_sqrt(1.0e-15 + left * left + right * right);
+    let a1 = left / norm;
+    let a2 = right / norm;
+    for j in 0..(n as usize) {
+        x[j] = a1 * x[j] + a2 * y[j];
+    }
+}
+
+pub fn stereo_split(x: &mut [CeltNorm], y: &mut [CeltNorm], n: i32) {
+    for j in 0..(n as usize) {
+        let l = 0.70710678 * x[j];
+        let r = 0.70710678 * y[j];
+        x[j] = l + r;
+        y[j] = r - l;
+    }
+}
+
+pub fn stereo_merge(x: &mut [CeltNorm], y: &mut [CeltNorm], mid: f32, n: i32) {
+    let mut xp = 0.0f32;
+    let mut side = 0.0f32;
+    for j in 0..(n as usize) {
+        xp += y[j] * x[j];
+        side += y[j] * y[j];
+    }
+    xp *= mid;
+    let el = mid * mid + side - 2.0 * xp;
+    let er = mid * mid + side + 2.0 * xp;
+    if el < 6.0e-4 || er < 6.0e-4 {
+        y[..(n as usize)].copy_from_slice(&x[..(n as usize)]);
+        return;
+    }
+    let lgain = 1.0 / el.sqrt();
+    let rgain = 1.0 / er.sqrt();
+    for j in 0..(n as usize) {
+        let l = mid * x[j];
+        let r = y[j];
+        x[j] = lgain * (l - r);
+        y[j] = rgain * (l + r);
     }
 }
