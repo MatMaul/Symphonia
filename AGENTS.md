@@ -26,8 +26,8 @@ is already ported. Keep this file updated as work progresses.
 - `symphonia-codec-opus/src/celt/math.rs`: math helpers (float path).
 - `symphonia-codec-opus/src/celt/rate.rs`: rate utilities (pulses/bits,
   allocation helpers).
-- `symphonia-codec-opus/src/celt/decoder.rs`: decoder helpers (tf_decode,
-  trim/spread icdf tables).
+- `symphonia-codec-opus/src/celt/decoder.rs`: CELT decoder scaffolding
+  (tf_decode, trim/spread icdf tables, basic CELT-only decode flow).
 - `symphonia-codec-opus/src/celt/bands.rs`: band helper utilities (hysteresis,
   bitexact cos/log2tan, LCG, denormalise, anti_collapse, hadamard + stereo helpers).
 - `symphonia-codec-opus/src/celt/bands_quant.rs`: decoder-side band quant
@@ -43,7 +43,8 @@ is already ported. Keep this file updated as work progresses.
   constants.
 
 ### Not yet implemented (next targets)
-- Finish wiring CELT decoder with `celt_synthesis` and EcDec/static modes.
+- Complete CELT decoder features (postfilter/PLC, Opus packet parsing, error
+  handling parity with C).
 - Full decoder integration with Symphonia (`AudioDecoder` + packet decode).
 
 ### Architectural notes

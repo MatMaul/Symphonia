@@ -66,7 +66,7 @@ pub fn init_caps(m: &CeltMode, cap: &mut [i32], lm: i32, channels: i32) {
     let nb_ebands = m.nb_ebands as usize;
     let lm = lm as i32;
     for i in 0..nb_ebands {
-        let n = (m.ebands[i + 1] as i32 - m.ebands[i] as i32) << lm;
+        let n = (m.ebands[i + 1] as i32 - m.ebands[i] as i32) << (lm as u32);
         let idx = (m.nb_ebands * (2 * lm + channels - 1)) as usize + i;
         let base = m.cache.caps[idx] as i32 + 64;
         cap[i] = (base * channels * n) >> 2;
@@ -96,19 +96,20 @@ fn interp_bits2pulses_decode(
     lm: i32,
     dec: &mut EcDec<'_>,
 ) -> i32 {
-    let alloc_floor = channels << (BITRES as i32);
-    let stereo = if channels > 1 { 1 } else { 0 };
-    let log_m = lm << (BITRES as i32);
+    let bitres = BITRES as u32;
+    let stereo_shift = if channels > 1 { 1u32 } else { 0u32 };
+    let alloc_floor = channels << bitres;
+    let log_m = lm << bitres;
 
     let mut lo = 0i32;
-    let mut hi = 1i32 << ALLOC_STEPS;
+    let mut hi = 1i32 << (ALLOC_STEPS as u32);
     for _ in 0..ALLOC_STEPS {
         let mid = (lo + hi) >> 1;
         let mut psum = 0i32;
         let mut done = false;
         for j in (start..end).rev() {
             let idx = j as usize;
-            let tmp = bits1[idx] + ((mid * bits2[idx]) >> ALLOC_STEPS);
+            let tmp = bits1[idx] + ((mid * bits2[idx]) >> (ALLOC_STEPS as u32));
             if tmp >= thresh[idx] || done {
                 done = true;
                 psum += tmp.min(cap[idx]);
@@ -127,7 +128,7 @@ fn interp_bits2pulses_decode(
     let mut done = false;
     for j in (start..end).rev() {
         let idx = j as usize;
-        let mut tmp = bits1[idx] + ((lo * bits2[idx]) >> ALLOC_STEPS);
+        let mut tmp = bits1[idx] + ((lo * bits2[idx]) >> (ALLOC_STEPS as u32));
         if tmp < thresh[idx] && !done {
             tmp = if tmp >= alloc_floor { alloc_floor } else { 0 };
         } else {
@@ -152,12 +153,12 @@ fn interp_bits2pulses_decode(
         let rem = (left - (m.ebands[j as usize] - m.ebands[start as usize]) as i32).max(0);
         let band_width = (m.ebands[coded_bands as usize] - m.ebands[j as usize]) as i32;
         let mut band_bits = pulses[j as usize] + percoeff * band_width + rem;
-        if band_bits >= thresh[j as usize].max(alloc_floor + (1 << (BITRES as i32))) {
+        if band_bits >= thresh[j as usize].max(alloc_floor + (1 << bitres)) {
             if dec.dec_bit_logp(1) != 0 {
                 break;
             }
-            psum += 1 << (BITRES as i32);
-            band_bits -= 1 << (BITRES as i32);
+            psum += 1 << bitres;
+            band_bits -= 1 << bitres;
         }
         psum -= pulses[j as usize] + intensity_rsv;
         if intensity_rsv > 0 {
@@ -209,7 +210,7 @@ fn interp_bits2pulses_decode(
     for j in start..coded_bands {
         let idx = j as usize;
         let n0 = (m.ebands[idx + 1] - m.ebands[idx]) as i32;
-        let n = n0 << lm;
+        let n = n0 << (lm as u32);
         let bit = pulses[idx] + running_balance;
         let mut excess;
         if n > 1 {
@@ -225,42 +226,42 @@ fn interp_bits2pulses_decode(
             let nclogn = den * (m.log_n[idx] as i32 + log_m);
             let mut offset = (nclogn >> 1) - den * FINE_OFFSET;
             if n == 2 {
-                offset += (den << (BITRES as i32)) >> 2;
+                offset += (den << bitres) >> 2;
             }
-            if pulses[idx] + offset < den * 2 << (BITRES as i32) {
+            if pulses[idx] + offset < (den * 2) << bitres {
                 offset += nclogn >> 2;
-            } else if pulses[idx] + offset < den * 3 << (BITRES as i32) {
+            } else if pulses[idx] + offset < (den * 3) << bitres {
                 offset += nclogn >> 3;
             }
 
-            let mut eb = pulses[idx] + offset + (den << ((BITRES as i32) - 1));
+            let mut eb = pulses[idx] + offset + (den << (bitres - 1));
             if eb < 0 {
                 eb = 0;
             }
-            let mut ebits_j = (celt_udiv(eb as u32, den as u32) as i32) >> (BITRES as i32);
-            if channels * ebits_j > (pulses[idx] >> stereo >> (BITRES as i32)) {
-                ebits_j = pulses[idx] >> stereo >> (BITRES as i32);
+            let mut ebits_j = (celt_udiv(eb as u32, den as u32) as i32) >> bitres;
+            if channels * ebits_j > (pulses[idx] >> stereo_shift >> bitres) {
+                ebits_j = pulses[idx] >> stereo_shift >> bitres;
             }
             ebits_j = ebits_j.min(MAX_FINE_BITS);
-            fine_priority[idx] = if ebits_j * (den << (BITRES as i32)) >= pulses[idx] + offset {
+            fine_priority[idx] = if ebits_j * (den << bitres) >= pulses[idx] + offset {
                 1
             } else {
                 0
             };
-            pulses[idx] -= channels * ebits_j << (BITRES as i32);
+            pulses[idx] -= channels * ebits_j << bitres;
             ebits[idx] = ebits_j;
         } else {
-            excess = (bit - (channels << (BITRES as i32))).max(0);
+            excess = (bit - (channels << bitres)).max(0);
             pulses[idx] = bit - excess;
             ebits[idx] = 0;
             fine_priority[idx] = 1;
         }
 
         if excess > 0 {
-            let mut extra_fine = excess >> (stereo + (BITRES as i32));
+            let mut extra_fine = excess >> (stereo_shift + bitres);
             extra_fine = extra_fine.min(MAX_FINE_BITS - ebits[idx]);
             ebits[idx] += extra_fine;
-            let extra_bits = extra_fine * channels << (BITRES as i32);
+            let extra_bits = extra_fine * channels << bitres;
             fine_priority[idx] = if extra_bits >= excess - running_balance { 1 } else { 0 };
             excess -= extra_bits;
         }
@@ -270,7 +271,7 @@ fn interp_bits2pulses_decode(
 
     for j in coded_bands..end {
         let idx = j as usize;
-        ebits[idx] = pulses[idx] >> stereo >> (BITRES as i32);
+        ebits[idx] = pulses[idx] >> stereo_shift >> bitres;
         pulses[idx] = 0;
         fine_priority[idx] = if ebits[idx] < 1 { 1 } else { 0 };
     }
@@ -296,11 +297,12 @@ pub fn clt_compute_allocation(
     lm: i32,
     dec: &mut EcDec<'_>,
 ) -> i32 {
+    let bitres = BITRES as u32;
     total = total.max(0);
     let len = m.nb_ebands as usize;
     let mut skip_start = start;
-    let skip_rsv = if total >= 1 << (BITRES as i32) {
-        1 << (BITRES as i32)
+    let skip_rsv = if total >= 1 << bitres {
+        1 << bitres
     } else {
         0
     };
@@ -314,8 +316,8 @@ pub fn clt_compute_allocation(
             intensity_rsv = 0;
         } else {
             total -= intensity_rsv;
-            dual_stereo_rsv = if total >= 1 << (BITRES as i32) {
-                1 << (BITRES as i32)
+            dual_stereo_rsv = if total >= 1 << bitres {
+                1 << bitres
             } else {
                 0
             };
@@ -331,16 +333,16 @@ pub fn clt_compute_allocation(
     for j in start..end {
         let idx = j as usize;
         let n = (m.ebands[idx + 1] - m.ebands[idx]) as i32;
-        thresh[idx] = (channels << (BITRES as i32))
-            .max((3 * n << lm << (BITRES as i32)) >> 4);
+        thresh[idx] = (channels << bitres).max((3 * n << (lm as u32) << bitres) >> 4);
+        let lm_bitres = (lm as u32) + bitres;
         trim_offset[idx] = channels
             * n
             * (alloc_trim - 5 - lm)
             * (end - j - 1)
-            * (1 << (lm + (BITRES as i32)))
+            * (1 << lm_bitres)
             >> 6;
-        if (n << lm) == 1 {
-            trim_offset[idx] -= channels << (BITRES as i32);
+        if (n << (lm as u32)) == 1 {
+            trim_offset[idx] -= channels << bitres;
         }
     }
 
@@ -353,11 +355,9 @@ pub fn clt_compute_allocation(
         for j in (start..end).rev() {
             let idx = j as usize;
             let n = (m.ebands[idx + 1] - m.ebands[idx]) as i32;
-            let mut bitsj = channels
-                * n
-                * m.alloc_vectors[(mid as usize) * len + idx] as i32
-                << lm
-                >> 2;
+            let mut bitsj =
+                (channels * n * m.alloc_vectors[(mid as usize) * len + idx] as i32) << (lm as u32)
+                    >> 2;
             if bitsj > 0 {
                 bitsj = (bitsj + trim_offset[idx]).max(0);
             }
@@ -365,8 +365,8 @@ pub fn clt_compute_allocation(
             if bitsj >= thresh[idx] || done {
                 done = true;
                 psum += bitsj.min(cap[idx]);
-            } else if bitsj >= channels << (BITRES as i32) {
-                psum += channels << (BITRES as i32);
+            } else if bitsj >= channels << bitres {
+                psum += channels << bitres;
             }
         }
         if psum > total {
@@ -381,19 +381,12 @@ pub fn clt_compute_allocation(
     for j in start..end {
         let idx = j as usize;
         let n = (m.ebands[idx + 1] - m.ebands[idx]) as i32;
-        let mut bits1j = channels
-            * n
-            * m.alloc_vectors[(lo as usize) * len + idx] as i32
-            << lm
-            >> 2;
+        let mut bits1j =
+            (channels * n * m.alloc_vectors[(lo as usize) * len + idx] as i32) << (lm as u32) >> 2;
         let mut bits2j = if hi >= m.nb_alloc_vectors {
             cap[idx]
         } else {
-            channels
-                * n
-                * m.alloc_vectors[(hi as usize) * len + idx] as i32
-                << lm
-                >> 2
+            (channels * n * m.alloc_vectors[(hi as usize) * len + idx] as i32) << (lm as u32) >> 2
         };
         if bits1j > 0 {
             bits1j = (bits1j + trim_offset[idx]).max(0);
